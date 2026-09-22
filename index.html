@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="referrer" content="strict-origin-when-cross-origin" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Ekzcl7SdxQ9pNYMS6CC6VL2MCHW/1Li9sKiRngMJHVg=' 'sha256-uHsF2sNKangmQb76lKxjoihjosPWWj06qddHWuOWZ30=' https://geocoding.geo.census.gov; script-src-attr 'none'; style-src 'sha256-GoF+uGmyg3lrHsKyhFVBIYT5wrRI9d5NF0sG3C/rDSs='; style-src-attr 'none'; connect-src https://services3.arcgis.com https://gis.data.ca.gov; img-src https://www.senate.ca.gov https://server.arcgisonline.com; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'self'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests" />
+<title>California State Senate — District & Vote Explorer</title>
+<style>
+:root{
+  --bg:#07111f;--panel:#0c1929;--panel2:#102238;--text:#edf5ff;--muted:#9eb0c6;
+  --line:#28405b;--accent:#7dd3fc;--good:#34d399;--bad:#fb7185;--warn:#fbbf24;
+  --shadow:0 20px 55px rgba(0,0,0,.38)
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:radial-gradient(circle at 16% 5%,#102746 0,#07111f 34%,#050b13 100%);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+button,input,select{font:inherit}
+a{color:#8bdcff;text-decoration:none}a:hover{text-decoration:underline}
+.shell{max-width:1560px;margin:auto;padding:20px}
+header{display:flex;gap:18px;align-items:flex-end;justify-content:space-between;margin-bottom:13px;flex-wrap:wrap}
+h1{margin:0;font-size:clamp(27px,3vw,42px);line-height:1.12;letter-spacing:-.035em}.title-mobile{display:none}
+.sub{color:var(--muted);max-width:1050px;margin-top:5px}
+.status{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}.dot{width:9px;height:9px;border-radius:50%;background:var(--warn);box-shadow:0 0 14px currentColor}.dot.ok{background:var(--good)}.dot.err{background:var(--bad)}
+.card{background:linear-gradient(180deg,rgba(15,33,54,.97),rgba(8,20,34,.97));border:1px solid #213952;border-radius:18px;box-shadow:var(--shadow)}
+.controls{display:grid;grid-template-columns:minmax(300px,1.5fr) auto minmax(230px,.8fr) minmax(180px,.55fr) auto;gap:8px;margin-bottom:8px;align-items:center}
+.address-group{display:grid;grid-template-columns:minmax(210px,1fr) auto;gap:8px}
+input,select,button{color:var(--text);background:#0b1827;border:1px solid var(--line);border-radius:10px;padding:9px 11px;min-height:40px}
+input{width:100%;min-width:0}select{width:100%}button{cursor:pointer;font-weight:700}button:hover{border-color:#5d7ea3;background:#102238}button:disabled{opacity:.55;cursor:not-allowed}
+.lookup-line{min-height:19px;margin:0 2px 6px;color:#a9bed6;font-size:12px}.lookup-line:empty{display:none}.lookup-line.good{color:#9ee8c8}.lookup-line.bad{color:#fda4af}
+.privacy-details{margin:0 2px 8px;color:#9fb4c9;font-size:11px}.privacy-details summary{cursor:pointer;color:#8bdcff;display:inline-flex;align-items:center;gap:5px;list-style:none;font-weight:700}.privacy-details summary::-webkit-details-marker{display:none}.privacy-details summary::before{content:'ⓘ';font-weight:400}.privacy-details div{margin-top:5px;max-width:980px}
+.map-card{position:relative;overflow:hidden}
+.map-top{display:flex;justify-content:space-between;align-items:center;padding:10px 13px;border-bottom:1px solid #1f344b;gap:10px;flex-wrap:wrap}
+.map-title-row{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}.map-top strong{font-size:16px}.hint{color:var(--muted);font-size:12px}
+.map-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.legend{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.legend span{display:inline-flex;align-items:center;gap:5px}.swatch{width:9px;height:9px;border-radius:50%}.swatch.d{background:#3b82f6}.swatch.r{background:#ef4444}.swatch.v{background:#94a3b8}
+#mapWrap{height:min(77vh,840px);min-height:590px;position:relative;overflow:hidden;background:#07111f;touch-action:none;overscroll-behavior:contain;user-select:none;isolation:isolate}
+#map{width:100%;height:100%;display:block;touch-action:none;cursor:grab;background:#0a1420}#map.dragging{cursor:grabbing}
+.basemap-tile{pointer-events:none;opacity:.78;filter:saturate(.72) brightness(.72) contrast(1.12)}
+.district{cursor:pointer;stroke:#f8fafc;stroke-width:1.15;vector-effect:non-scaling-stroke;fill-opacity:.43;transition:filter .12s,opacity .15s,stroke-width .12s,fill-opacity .12s}.district:hover,.district:focus{filter:brightness(1.13) saturate(1.12);stroke:#fff;stroke-width:2.6;fill-opacity:.53;outline:none}.district.selected{stroke:#fff;stroke-width:3.6;fill-opacity:.62;filter:brightness(1.14) saturate(1.12)}.district.filtered{opacity:.09;pointer-events:none;filter:saturate(.2)}
+.district-label{pointer-events:none;fill:#fff;font-weight:900;text-anchor:middle;paint-order:stroke;stroke:#07111f;stroke-linejoin:round}.district-label.filtered{opacity:.12}.district-label.label-hidden{display:none}.district-label.label-selected{fill:#fff;font-weight:950}
+.loading{position:absolute;inset:0;z-index:8;display:grid;place-items:center;color:var(--muted);text-align:center;padding:30px;pointer-events:none;background:rgba(6,14,24,.76)}.spinner{width:34px;height:34px;border:3px solid #27405c;border-top-color:#7dd3fc;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}@keyframes spin{to{transform:rotate(360deg)}}
+.map-tools{position:absolute;z-index:7;right:10px;top:10px;display:inline-flex;align-items:center;gap:3px;padding:3px;background:#071525e8;border:1px solid #35516c;border-radius:11px;box-shadow:0 6px 20px rgba(0,0,0,.28);backdrop-filter:blur(10px)}.map-tools button{width:34px;height:34px;min-height:34px;padding:0;font-size:18px;display:grid;place-items:center;border-radius:8px;background:#0d1d30}.map-tools .fit{font-size:14px}.zoom-readout{min-width:44px;font-size:11px;color:#d4e4f4;text-align:center;padding:0 4px;font-variant-numeric:tabular-nums}
+.map-attribution{position:absolute;z-index:6;right:7px;bottom:6px;padding:2px 5px;border-radius:5px;background:rgba(5,12,20,.78);font-size:9px;color:#9fb4c9;pointer-events:auto}.map-attribution a{color:#bfe7ff}
+.eyebrow{color:#77d9ff;text-transform:uppercase;letter-spacing:.12em;font-weight:800;font-size:11px}.member{font-size:28px;font-weight:850;letter-spacing:-.025em;margin:3px 0}.region-title{font-size:16px;font-weight:800;color:#d9ecff;margin:3px 0 8px}.meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 13px}.pill{display:inline-flex;align-items:center;border:1px solid #33506d;border-radius:999px;padding:4px 9px;color:#cfe2f7;background:#102238;font-size:12px}.party-d{border-color:#2563eb77;background:#2563eb21}.party-r{border-color:#ef444477;background:#ef444421}.party-v{border-color:#94a3b877;background:#94a3b821}
+.member-layout{display:grid;grid-template-columns:150px minmax(0,1fr);gap:18px;align-items:start;padding-right:42px}.portrait-wrap{width:150px}.senator-photo{display:block;width:150px;height:184px;object-fit:cover;object-position:center top;border-radius:14px;border:1px solid #395675;background:#081421;box-shadow:0 12px 30px rgba(0,0,0,.28)}.portrait-caption{font-size:10px;color:#8097b0;margin-top:5px;text-align:center}.photo-fallback{display:grid;place-items:center;width:150px;height:184px;border-radius:14px;border:1px solid #395675;background:#102238;color:#9fb4c9;text-align:center;padding:10px}
+.profile-links{display:flex;gap:13px;flex-wrap:wrap;margin:9px 0 3px;font-weight:750}.profile-link{display:inline-flex;gap:6px;align-items:center}
+h3{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#a8bdd4;margin:17px 0 8px}.area-card{border:1px solid #294761;background:#0d2034;border-radius:12px;padding:12px 13px;margin-top:13px}.area-card strong{display:block;color:#dff1ff;margin-bottom:4px}.area-card p{margin:0;color:#bcd1e6}.area-note{font-size:10px;color:#849ab1;margin-top:7px}
+.contact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.contact-card{border:1px solid #263f58;background:#091827;border-radius:10px;padding:9px 10px}.contact-office{font-size:11px;color:#92a9c1;margin-bottom:2px}.contact-phone{font-weight:800;color:#e7f3ff}.address-hit{border:1px solid #315776;background:#102941;border-radius:11px;padding:10px 11px;margin:8px 0 15px;color:#d6e8f7}.address-hit strong{display:block;color:#8bdcff;margin-bottom:2px}.address-hit .small{color:#9fb4c9}
+.vote{padding:10px 0;border-top:1px solid #20364e}.vote:first-of-type{border-top:0}.vote-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.bill{font-weight:800;font-size:15px}.vote-date{font-size:11px;color:var(--muted);margin-top:2px}.vote-desc{color:#bdd0e4;margin-top:5px;font-size:12px}.vote-links{margin-top:7px;display:flex;gap:12px;font-size:12px;flex-wrap:wrap}.tag{font-size:11px;font-weight:900;letter-spacing:.04em;padding:4px 8px;border-radius:999px;white-space:nowrap}.yea{color:#bbf7d0;background:#14532d77;border:1px solid #22c55e66}.nay{color:#fecdd3;background:#88133766;border:1px solid #fb718566}.nvr{color:#fde68a;background:#78350f66;border:1px solid #fbbf2466}.vacant{color:#e2e8f0;background:#33415588;border:1px solid #94a3b866}
+.popover{position:fixed;z-index:50;left:12px;top:100px;width:min(450px,calc(100vw - 32px));background:#0b1929fa;border:1px solid #4a6d8e;border-radius:16px;padding:15px;box-shadow:0 22px 70px rgba(0,0,0,.58);backdrop-filter:blur(14px);display:none}.popover.show{display:block}.preview{display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px;align-items:start}.preview .senator-photo,.preview .photo-fallback{width:96px;height:118px;border-radius:11px}.preview .member{font-size:21px;line-height:1.1}.preview .region-title{font-size:14px;line-height:1.28;margin:4px 0}.preview .meta{margin:7px 0 5px}.preview-area{font-size:12px;line-height:1.35;color:#b8cde1;margin-top:6px}.preview-contact{font-size:12px;color:#d9ecff;margin-top:7px;font-weight:750}.preview-hint{font-size:11px;color:#8fcdf2;margin-top:8px;font-weight:700}.map-status{position:absolute;z-index:9;left:10px;bottom:10px;max-width:min(520px,calc(100% - 20px));padding:8px 10px;border:1px solid #7f1d1d;border-radius:10px;background:#3f1111e8;color:#fecaca;font-size:11px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.modal-backdrop{position:fixed;inset:0;background:rgba(1,6,12,.76);display:none;z-index:100;padding:18px;place-items:center}.modal-backdrop.show{display:grid}.modal{width:min(860px,100%);max-height:91vh;overflow:auto;background:#0b1929;border:1px solid #466583;border-radius:18px;box-shadow:0 30px 100px rgba(0,0,0,.68);padding:20px;position:relative}.close{position:absolute;right:12px;top:12px;width:40px;height:40px;padding:0;font-size:23px;z-index:2}
+.errorbox{max-width:620px;border:1px solid #7f1d1d;background:#450a0a55;border-radius:12px;padding:16px;color:#fecaca}.small{font-size:11px;color:var(--muted)}
+footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;color:#8298af;font-size:10px;margin:10px 2px 0;padding:8px 0 2px;border-top:1px solid #1e344c}.sources{display:flex;gap:11px;flex-wrap:wrap}.footer-note{max-width:760px}
+@media(max-width:1050px){.controls{grid-template-columns:1fr 1fr}.address-group{grid-column:1/-1}.map-actions{width:auto}.member-layout{padding-right:36px}}
+@media(max-width:650px){
+  .shell{padding:7px}
+  header{display:block;margin-bottom:7px}
+  h1{font-size:24px;line-height:1.05;letter-spacing:-.03em}.title-desktop{display:none}.title-mobile{display:inline}
+  .sub{font-size:12px;line-height:1.28;margin-top:4px;max-width:430px}.sub .mobile-hide{display:none}
+  .status{display:inline-flex;margin-top:6px;padding:4px 7px;border:1px solid #1d354d;border-radius:999px;background:#091827;font-size:10.5px;line-height:1.2}.dot{width:7px;height:7px}
+  .controls{grid-template-columns:1fr 1fr;gap:6px;margin-bottom:5px}
+  .address-group{grid-column:1/-1;grid-template-columns:minmax(0,1fr) 96px;gap:6px}
+  .controls input,.controls select,.controls button{min-height:37px;padding:7px 9px;border-radius:9px;font-size:13px}
+  .address-group button{width:96px;padding-left:7px;padding-right:7px}
+  .reset-control{grid-column:1/-1;min-height:33px!important}
+  .lookup-line{font-size:10.5px;line-height:1.3;margin:0 2px 5px;min-height:0}
+  .privacy-details{font-size:10px;margin:0 2px 6px}.privacy-details div{line-height:1.3}
+  .map-card{border-radius:14px}
+  .map-top{padding:7px 9px;gap:6px;align-items:center}.map-top strong{font-size:14px}.hint{display:none}
+  .map-actions{width:auto}.legend{font-size:10px;gap:7px}.legend span{gap:3px}.swatch{width:7px;height:7px}
+  #mapWrap{height:72dvh;min-height:520px;max-height:720px}
+  .map-tools{right:7px;top:7px;padding:2px;gap:2px}.map-tools button{width:31px;height:31px;min-height:31px;font-size:17px}.map-tools .fit{font-size:13px}.zoom-readout{min-width:40px;font-size:10px}
+  .map-attribution{font-size:8px;right:5px;bottom:4px}
+  .popover{display:none!important}
+  .member{font-size:23px}.region-title{font-size:14px}
+  .member-layout{grid-template-columns:86px minmax(0,1fr);gap:11px;padding-right:32px}.portrait-wrap,.senator-photo,.photo-fallback{width:86px}.senator-photo,.photo-fallback{height:106px}.portrait-caption{display:none}
+  .contact-grid{grid-template-columns:1fr}.profile-links{gap:9px}
+  .modal-backdrop{padding:0;place-items:end center;background:rgba(1,6,12,.68)}.modal{width:100%;max-height:78dvh;border-radius:18px 18px 0 0;border-left:0;border-right:0;border-bottom:0;padding:17px 13px 22px;box-shadow:0 -18px 65px rgba(0,0,0,.62)}.close{right:8px;top:8px}
+  footer{margin:7px 2px 0;padding-top:6px}.footer-note{display:none}.sources{gap:8px;font-size:9px}
+}
+@media(max-width:380px){h1{font-size:22px}.controls input,.controls select,.controls button{font-size:12px}.address-group{grid-template-columns:minmax(0,1fr) 84px}.address-group button{width:84px}.legend{gap:5px}}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div>
+      <h1><span class="title-desktop">California State Senate — District &amp; Vote Explorer</span><span class="title-mobile">California Senate Explorer</span></h1>
+      <div class="sub">Explore all 40 California State Senate districts. <span class="mobile-hide">Select a district to see its major communities, senator, official portrait, </span>contacts and recent Senate floor votes.</div>
+    </div>
+    <div class="status"><span id="statusDot" class="dot"></span><span id="statusText">Loading official district geometry…</span></div>
+  </header>
+
+  <div class="controls" aria-label="Map controls">
+    <div class="address-group">
+      <input id="addressInput" type="search" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="220" placeholder="Enter a California street address…" aria-label="California street address" />
+      <button id="addressBtn" type="button">Find district</button>
+    </div>
+    <select id="districtSelect" aria-label="Choose State Senate district"><option value="">Choose District 1–40…</option></select>
+    <select id="partyFilter" aria-label="Filter districts by party">
+      <option value="ALL">All parties</option>
+      <option value="D">Democratic</option>
+      <option value="R">Republican</option>
+      <option value="V">Vacant seat</option>
+    </select>
+    <button id="resetBtn" class="reset-control" type="button">Reset map</button>
+  </div>
+  <div id="lookupLine" class="lookup-line" aria-live="polite"></div>
+  <details class="privacy-details"><summary>Address privacy</summary><div>Address lookup uses the U.S. Census Geocoder.</div></details>
+
+  <section class="card map-card">
+    <div class="map-top">
+      <div class="map-title-row"><strong>California State Senate districts</strong><span class="hint">Hover for a quick preview · click/tap for district, contact & votes</span></div>
+      <div class="map-actions">
+        <div class="legend" aria-label="Party legend"><span><i class="swatch d"></i>Democratic</span><span><i class="swatch r"></i>Republican</span><span><i class="swatch v"></i>Vacant</span></div>
+      </div>
+    </div>
+    <div id="mapWrap">
+      <svg id="map" viewBox="0 0 900 760" role="img" aria-label="Interactive map of California State Senate districts over a street basemap">
+        <g id="basemapLayer"></g>
+        <g id="districtLayer"></g>
+        <g id="labelLayer"></g>
+        <g id="markerLayer"></g>
+      </svg>
+      <div class="map-tools" aria-label="Zoom controls">
+        <button id="zoomOutBtn" type="button" aria-label="Zoom out" title="Zoom out">−</button>
+        <div id="zoomReadout" class="zoom-readout">1.0×</div>
+        <button id="zoomInBtn" type="button" aria-label="Zoom in" title="Zoom in">+</button>
+        <button id="fitBtn" class="fit" type="button" aria-label="Fit California" title="Fit California">⌂</button>
+      </div>
+      <div class="map-attribution">Basemap © <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a></div>
+      <div id="basemapStatus" class="map-status" role="status" aria-live="polite" hidden></div>
+      <div id="loading" class="loading"><div><div class="spinner"></div>Loading official California district boundaries…</div></div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-note">Official public sources · roster/contact snapshot Sep. 21, 2026 · NVR = no vote recorded.</div>
+    <div class="sources">
+      <a href="https://www.senate.ca.gov/senators" target="_blank" rel="noopener noreferrer">Senate ↗</a>
+      <a href="https://sdmg.senate.ca.gov/committeehome/current-senate-districts" target="_blank" rel="noopener noreferrer">District maps ↗</a>
+      <a href="https://lab.data.ca.gov/dataset/ca-state-senate-districts-and-membership-2025-2030" target="_blank" rel="noopener noreferrer">GIS ↗</a>
+      <a href="https://leginfo.legislature.ca.gov/" target="_blank" rel="noopener noreferrer">LegInfo ↗</a>
+    </div>
+  </footer>
+</div>
+
+<div id="popover" class="popover" role="dialog" aria-label="District preview"></div>
+<div id="modalBackdrop" class="modal-backdrop" role="presentation">
+  <div id="modal" class="modal" role="dialog" aria-modal="true" aria-label="District details">
+    <button id="closeModal" class="close" aria-label="Close">×</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// Standalone anti-framing fallback. Real hosted deployments should also send
+// CSP frame-ancestors 'none' (and optionally X-Frame-Options: DENY) as HTTP headers.
+if(window.top!==window.self){
+  document.documentElement.replaceChildren();
+  throw new Error('Blocked: this page cannot run inside an iframe.');
+}
+
+window.addEventListener('error',e=>console.error('[CA Senate Map] uncaught application error:',e.error||e.message||e));
+window.addEventListener('unhandledrejection',e=>console.error('[CA Senate Map] unhandled promise rejection:',e.reason||e));
+
+const SNAPSHOT='September 21, 2026';
+const GEO_ENDPOINT='https://services3.arcgis.com/uknczv4rpevve42E/arcgis/rest/services/CA_State_Senate_Districts_and_Membership/FeatureServer/0/query?where=1%3D1&outFields=district&returnGeometry=true&outSR=4326&geometryPrecision=5&maxAllowableOffset=0.0025&f=geojson';
+const GEO_FALLBACK='https://gis.data.ca.gov/api/download/v1/items/837964f230734558bf6be1e0d59f5f28/geojson?layers=0';
+const BASE_VIEW={x:0,y:0,w:900,h:760};
+const MAX_ZOOM=25;
+
+const members={"1":{"name":"Megan Dahle","party":"R","url":"https://sr01.senate.ca.gov/","districtUrl":"https://sr01.senate.ca.gov/","region":"Far Northern & Northeastern California","areas":"Redding, Chico, Grass Valley and surrounding northern mountain and rural communities.","capitol":"(916) 651-4001","offices":[["Redding","(530) 224-7001"],["Chico","(530) 879-7424"],["Grass Valley","(530) 271-7412"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/Senator%2520Megan%2520Dahle%2520Headshot_1.jpg?itok=K8pCYrIb"},"2":{"name":"Mike McGuire","party":"D","url":"https://sd02.senate.ca.gov/","districtUrl":"https://sd02.senate.ca.gov/district","region":"North Coast & North Bay","areas":"Del Norte, Trinity, Humboldt, Mendocino, Lake, Marin and Sonoma counties.","capitol":"(916) 651-4002","offices":[["San Rafael","(415) 479-6612"],["Santa Rosa","(707) 576-2771"],["Ukiah","(707) 468-8914"],["Crescent City","(707) 464-1255"],["Eureka","(707) 445-6508"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/MCGUIRE%252C%2520MIKE%2520%2528D-02%2529_8.jpg?itok=VpRlUJgL"},"3":{"name":"Christopher Cabaldon","party":"D","url":"https://sd03.senate.ca.gov/","districtUrl":"https://sd03.senate.ca.gov/district","region":"Wine Country, North Bay, Delta & Sacramento Valley","areas":"Napa, Vallejo, Santa Rosa, Davis and surrounding Solano, Yolo and Sonoma communities.","capitol":"(916) 651-4003","offices":[["Napa","(707) 224-1990"],["Santa Rosa","(707) 576-2093"],["Davis","(530) 750-7913"],["Vallejo","(707) 551-2389"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/Portrait%2520Cabaldon%2520Portrait_1.jpg?itok=62pFZjgO"},"4":{"name":"Marie Alvarado-Gil","party":"R","url":"https://sr04.senate.ca.gov/","districtUrl":"https://sr04.senate.ca.gov/issue/district-map","region":"Sierra Nevada & Central Valley","areas":"A wide Sierra and Central Valley district spanning communities from El Dorado County through the central foothills and Stanislaus area.","capitol":"(916) 651-4004","offices":[["El Dorado Hills","(916) 933-8680"],["Modesto","(209) 576-6001"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/ALVARADO-GIL%252C%2520MARIE%2520%2528D-04%2529_9.jpg?itok=iAo2MJ9B"},"5":{"name":"Jerry McNerney","party":"D","url":"https://sd05.senate.ca.gov/","districtUrl":"https://sd05.senate.ca.gov/district","region":"San Joaquin County & Tri-Valley","areas":"Stockton, Dublin and surrounding San Joaquin and eastern Alameda County communities.","capitol":"(916) 651-4005","offices":[["Stockton","(209) 472-9535"],["Dublin","(925) 828-2500"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/McNerney%2520new%2520headshot%25203_0_1.jpg?itok=K1h4FfYc"},"6":{"name":"Roger W. Niello","party":"R","url":"https://sr06.senate.ca.gov/","districtUrl":"https://sr06.senate.ca.gov/","region":"Sacramento Suburbs & Placer County","areas":"Citrus Heights, Folsom, Rancho Cordova, Roseville, Rocklin, Lincoln, Auburn and nearby Sacramento/Placer communities.","capitol":"(916) 651-4006","offices":[["Roseville","(916) 772-0571"],["Rancho Cordova","(916) 464-3980"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/Niello%252C%2520Roger%2520%2528R-6%2529_7.jpg?itok=9UnEm3NI"},"7":{"name":"Jesse Arreguín","party":"D","url":"https://sd07.senate.ca.gov/","districtUrl":"https://sd07.senate.ca.gov/district","region":"East Bay","areas":"Oakland, Berkeley, Richmond and surrounding Alameda and Contra Costa County communities.","capitol":"(916) 651-4007","offices":[["Oakland","(510) 286-1333"],["Richmond","(510) 233-2903"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/Portrait%2520Arreguin%2520Portrait_1.jpg?itok=h4VJZOPg"},"8":{"name":"Angelique V. Ashby","party":"D","url":"https://sd08.senate.ca.gov/","districtUrl":"https://sd08.senate.ca.gov/district","region":"Sacramento & Elk Grove","areas":"Sacramento, Elk Grove, North Highlands, Rio Linda and nearby Sacramento County communities.","capitol":"(916) 651-4008","offices":[["Sacramento District Office","(916) 319-0309"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/ASHBY%252C%2520ANGELIQUE%2520%2528D-08%2529_9.jpg?itok=gJmqX3Da"},"9":{"name":"Timothy S. Grayson","party":"D","url":"https://sd09.senate.ca.gov/","districtUrl":"https://sd09.senate.ca.gov/district","region":"Contra Costa & Southern Solano","areas":"Walnut Creek, Concord, Martinez, Richmond, Hercules, Benicia and nearby East Bay communities.","capitol":"(916) 651-4009","offices":[["Walnut Creek","(925) 944-4901"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/Portrait%2520Grayson_2.jpg?itok=oc1dsBFI"},"10":{"name":"Vacant","party":"V","url":"https://sd10.senate.ca.gov/","districtUrl":"https://sd10.senate.ca.gov/district","region":"East Bay & South Bay","areas":"Fremont, Hayward, Newark, Union City, Milpitas, Santa Clara, Sunnyvale and part of San Jose.","capitol":"(916) 651-4410","offices":[["Fremont District Office","(510) 794-3900"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/vacate_senate-seal-portrait_1_30.png?itok=A9i9iRfw"},"11":{"name":"Scott D. Wiener","party":"D","url":"https://sd11.senate.ca.gov/","districtUrl":"https://sd11.senate.ca.gov/district","region":"San Francisco & Northern San Mateo County","areas":"San Francisco, Daly City, Colma, Broadmoor and portions of San Bruno and South San Francisco.","capitol":"(916) 651-4011","offices":[["San Francisco","(415) 557-1300"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/WIENER%252C%2520SCOTT%2520%2528D-11%2529_9.jpg?itok=-AtzexBQ"},"12":{"name":"Shannon Grove","party":"R","url":"https://sr12.senate.ca.gov/","districtUrl":"https://sr12.senate.ca.gov/issue/ca-senate-district-12-map","region":"Southern Central Valley","areas":"Bakersfield, Fresno and surrounding Kern and Fresno-area communities.","capitol":"(916) 651-4012","offices":[["Bakersfield","(661) 323-0443"],["Fresno","(559) 243-8580"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/GROVE%252C%2520SHANNON%2520%2528R-12%2529_7.jpg?itok=4Z6UhZ87"},"13":{"name":"Josh Becker","party":"D","url":"https://sd13.senate.ca.gov/","districtUrl":"https://sd13.senate.ca.gov/district","region":"San Mateo Peninsula & Northern Santa Clara County","areas":"Peninsula communities in San Mateo County and the northern portion of Santa Clara County.","capitol":"(916) 651-4013","offices":[["Menlo Park","(650) 233-2724"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/BECKER%252C%2520JOSH%2520%2528D-13%2529_7.jpg?itok=fz_D2b1_"},"14":{"name":"Anna M. Caballero","party":"D","url":"https://sd14.senate.ca.gov/","districtUrl":"https://sd14.senate.ca.gov/district","region":"Central Valley","areas":"Fresno, Merced and surrounding Central Valley communities.","capitol":"(916) 651-4014","offices":[["Fresno","(559) 264-3070"],["Merced","(209) 726-5495"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/CABALLERO%252C%2520ANNA%2520%2528D-14%2529_8.jpg?itok=DRqAt7aX"},"15":{"name":"Dave Cortese","party":"D","url":"https://sd15.senate.ca.gov/","districtUrl":"https://sd15.senate.ca.gov/district","region":"San Jose & Southern Santa Clara County","areas":"San Jose, Morgan Hill, Gilroy, San Martin and portions of the West Valley.","capitol":"(916) 651-4015","offices":[["San Jose","(408) 723-4154"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/CORTESE%252C%2520DAVE%2520%2528D-15%2529_6.jpg?itok=Yts7GSsl"},"16":{"name":"Melissa Hurtado","party":"D","url":"https://sd16.senate.ca.gov/","districtUrl":"https://sd16.senate.ca.gov/district","region":"Southern Central Valley","areas":"Portions of Fresno, Tulare, Kings and Kern counties.","capitol":"(916) 651-4016","offices":[["Bakersfield","(661) 395-2620"],["Tulare","(559) 685-1202"],["Lemoore","(559) 924-1201"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/HURTADO%252C%2520MELISSA%2520%2528D-16%2529_6.jpg?itok=VF6ShqaA"},"17":{"name":"John Laird","party":"D","url":"https://sd17.senate.ca.gov/","districtUrl":"https://sd17.senate.ca.gov/district","region":"Central Coast","areas":"Santa Cruz, San Benito, Monterey and most of San Luis Obispo County, including Salinas, Watsonville, Monterey and San Luis Obispo.","capitol":"(916) 651-4017","offices":[["Monterey","(831) 657-6315"],["San Luis Obispo","(805) 549-3784"],["Santa Cruz","(831) 425-0401"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/LAIRD%252C%2520JOHN%2520%2528D-17%2529_6.jpg?itok=wmob19vV"},"18":{"name":"Stephen C. Padilla","party":"D","url":"https://sd18.senate.ca.gov/","districtUrl":"https://sd18.senate.ca.gov/district","region":"South San Diego, Imperial & Eastern Coachella Valley","areas":"Chula Vista, National City, Imperial Beach, El Centro, Calexico, Indio, Coachella, Blythe and nearby communities.","capitol":"(916) 651-4018","offices":[["Chula Vista","(619) 409-7690"],["El Centro","(760) 335-3442"],["Indio","(760) 398-6442"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/PADILLA%252C%2520STEVE%2520%2528D-18%2529_9.jpg?itok=IE7q0UZ2"},"19":{"name":"Rosilicie Ochoa Bogh","party":"R","url":"https://sr19.senate.ca.gov/","districtUrl":"https://sr19.senate.ca.gov/","region":"Inland Empire & Eastern Desert","areas":"Redlands, Yucaipa, Beaumont, Calimesa, La Quinta, Yucca Valley, Twentynine Palms and surrounding Riverside/San Bernardino communities.","capitol":"(916) 651-4019","offices":[["Redlands","(909) 335-0271"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/2025%2520Ochoa%2520Bogh%2520headshot_1.jpg?itok=EX3xL4UE"},"20":{"name":"Caroline Menjivar","party":"D","url":"https://sd20.senate.ca.gov/","districtUrl":"https://sd20.senate.ca.gov/district","region":"East/Central San Fernando Valley & Burbank","areas":"Burbank, Canoga Park, Lake View Terrace, Mission Hills, Pacoima, Panorama City, Reseda, San Fernando, Sun Valley, Sunland-Tujunga, Sylmar and Van Nuys.","capitol":"(916) 651-4020","offices":[["Van Nuys","(818) 901-5588"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/MENJIVAR%252C%2520CAROLINE%2520%2528D-20%2529_7.jpg?itok=gvoexhqY"},"21":{"name":"Monique Limón","party":"D","url":"https://sd21.senate.ca.gov/","districtUrl":"https://sd21.senate.ca.gov/district","region":"Santa Barbara, Ventura & Southern San Luis Obispo Region","areas":"Santa Barbara County plus portions of Ventura and San Luis Obispo counties.","capitol":"(916) 651-4021","offices":[["Oxnard","(805) 988-1940"],["Santa Barbara","(805) 965-0862"],["Santa Maria","(805) 346-1803"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/sd21_limon_0.jpg?itok=q8Ds_VyS"},"22":{"name":"Susan Rubio","party":"D","url":"https://sd22.senate.ca.gov/","districtUrl":"https://sd22.senate.ca.gov/district","region":"San Gabriel Valley & Western Inland Empire","areas":"Azusa, Baldwin Park, Covina, Duarte, El Monte, La Verne, Pomona, West Covina, Chino, Montclair and Ontario.","capitol":"(916) 651-4022","offices":[["West Covina","(626) 430-2499"],["Ontario","(909) 460-6064"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/RUBIO%252C%2520SUSAN%2520%2528D-22%2529_7.jpg?itok=MA5lc81w"},"23":{"name":"Suzette Martinez Valladares","party":"R","url":"https://sr23.senate.ca.gov/","districtUrl":"https://sr23.senate.ca.gov/","region":"Santa Clarita, Antelope Valley & High Desert","areas":"Santa Clarita/Valencia, Lancaster and High Desert communities including the Adelanto area.","capitol":"(916) 651-4023","offices":[["Lancaster","(661) 729-6232"],["Valencia","(661) 257-1204"],["Adelanto","(760) 246-2911"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/Valladares%2520Headshot%2520update_1.JPG?itok=GEv3ONvB"},"24":{"name":"Benjamin Allen","party":"D","url":"https://sd24.senate.ca.gov/","districtUrl":"https://sd24.senate.ca.gov/district","region":"Westside Los Angeles & South Bay Coast","areas":"Malibu, Santa Monica, Beverly Hills, West Hollywood, El Segundo, Torrance, beach cities, Palos Verdes and Westside Los Angeles communities.","capitol":"(916) 651-4024","offices":[["El Segundo","(310) 414-8190"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/ALLEN%252C%2520BEN%2520%2528D-26%2529_6.jpg?itok=mtLxm_Xt"},"25":{"name":"Sasha Renée Pérez","party":"D","url":"https://sd25.senate.ca.gov/","districtUrl":"https://sd25.senate.ca.gov/district","region":"San Gabriel Valley & Foothill Communities","areas":"Glendale, Pasadena, Alhambra, Altadena, Arcadia, Claremont, Glendora, Monrovia, Monterey Park, San Gabriel, South Pasadena, Temple City and portions of the Inland Empire foothills.","capitol":"(916) 651-4025","offices":[["Pasadena","(626) 304-1086"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/Senator%2520Perez_2.jpg?itok=NGozJTrK"},"26":{"name":"María Elena Durazo","party":"D","url":"https://sd26.senate.ca.gov/","districtUrl":"https://sd26.senate.ca.gov/district","region":"Central & East Los Angeles","areas":"Boyle Heights, El Sereno, Highland Park, Eagle Rock, Glassell Park, Echo Park, Silver Lake, East Hollywood, Koreatown, Chinatown, Little Tokyo and East Los Angeles.","capitol":"(916) 651-4026","offices":[["Los Angeles","(213) 483-9300"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/DURAZO%252C%2520M%2520%2528D-26%2529_9.jpg?itok=NylONhX6"},"27":{"name":"Henry I. Stern","party":"D","url":"https://sd27.senate.ca.gov/","districtUrl":"https://sd27.senate.ca.gov/district","region":"Western San Fernando Valley & Conejo Valley","areas":"Moorpark, Simi Valley, Thousand Oaks and western Valley communities including Chatsworth, Northridge, Tarzana, Woodland Hills, Sherman Oaks, Encino, Studio City and North Hollywood.","capitol":"(916) 651-4027","offices":[["Sherman Oaks","(818) 876-3352"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/STERN%252C%2520HENRY%2520%2528D-27%2529_8.jpg?itok=ellN7kQe"},"28":{"name":"Lola Smallwood-Cuevas","party":"D","url":"https://sd28.senate.ca.gov/","districtUrl":"https://sd28.senate.ca.gov/district","region":"South Los Angeles, West Adams & West-Central LA","areas":"Crenshaw, Baldwin Hills, West Adams, Exposition Park, South Los Angeles, Westchester, Culver City and nearby west-central Los Angeles communities.","capitol":"(916) 651-4028","offices":[["Los Angeles","(213) 745-6656"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/Smallwood-Cuevas_Headshot_08-12-26-LH-1-1.png?itok=DM3Mn868"},"29":{"name":"Eloise Gómez Reyes","party":"D","url":"https://sd29.senate.ca.gov/","districtUrl":"https://sd29.senate.ca.gov/district","region":"San Bernardino Valley / Inland Empire","areas":"Colton, Fontana, Highland, Loma Linda, Rancho Cucamonga, Redlands, Rialto, San Bernardino, Upland and nearby communities.","capitol":"(916) 651-4029","offices":[["San Bernardino","(909) 888-5360"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/Portrait%2520Reyes%25201_2.jpg?itok=lNV5OHK_"},"30":{"name":"Bob Archuleta","party":"D","url":"https://sd30.senate.ca.gov/","districtUrl":"https://sd30.senate.ca.gov/district","region":"Southeast LA County & Eastern San Gabriel Valley","areas":"Bellflower, Diamond Bar, Downey, Hacienda Heights, Montebello, Norwalk, Pico Rivera, Rowland Heights, Whittier, Walnut and Brea.","capitol":"(916) 651-4030","offices":[["Norwalk","(562) 406-1001"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/ARCHULETA%252C%2520BOB%2520%2528D-30%2529_7.jpg?itok=34GxU0iC"},"31":{"name":"Sabrina Cervantes","party":"D","url":"https://sd31.senate.ca.gov/","districtUrl":"https://sd31.senate.ca.gov/district","region":"Western Riverside County / Inland Empire","areas":"Corona, Eastvale, Jurupa Valley, Menifee, Moreno Valley, Perris, Riverside, San Jacinto and nearby communities.","capitol":"(916) 651-4031","offices":[["Riverside","(951) 680-6750"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/Portrait%2520Cervantes_2.jpg?itok=qImOJI-F"},"32":{"name":"Kelly Seyarto","party":"R","url":"https://sr32.senate.ca.gov/","districtUrl":"https://sr32.senate.ca.gov/","region":"Southwest Riverside, Inland Orange & San Diego Backcountry","areas":"Lake Elsinore, Menifee, Murrieta, Temecula, Wildomar, Corona, Chino Hills, Yorba Linda and inland/backcountry communities extending into San Diego County.","capitol":"(916) 651-4032","offices":[["Murrieta","(951) 894-2220"],["Corona","(951) 280-1260"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/SEYARTO%252C%2520KELLY%2520%2528R-32%2529_5.jpg?itok=fSe1WzQY"},"33":{"name":"Lena A. Gonzalez","party":"D","url":"https://sd33.senate.ca.gov/","districtUrl":"https://sd33.senate.ca.gov/district","region":"Long Beach, Southeast Los Angeles & Catalina Island","areas":"Long Beach, southeast Los Angeles County communities and Catalina Island.","capitol":"(916) 651-4033","offices":[["Long Beach","(562) 256-7921"],["Huntington Park","(323) 277-4560"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/GONZALEZ%252C%2520LENA%2520%2528D-33%2529_9.jpg?itok=ylLC-ynv"},"34":{"name":"Thomas J. Umberg","party":"D","url":"https://sd34.senate.ca.gov/","districtUrl":"https://sd34.senate.ca.gov/district","region":"Northern Orange County","areas":"Santa Ana, Anaheim, Placentia, Fullerton, Buena Park, La Habra, western Orange and South Whittier.","capitol":"(916) 651-4034","offices":[["Santa Ana","(714) 558-3785"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/UMBERG%252C%2520TOM%2520%2528D-34%2529_7.jpg?itok=0YQS9Jjz"},"35":{"name":"Laura Richardson","party":"D","url":"https://sd35.senate.ca.gov/","districtUrl":"https://sd35.senate.ca.gov/district","region":"South Los Angeles & South Bay","areas":"Carson, Compton, Gardena, Hawthorne, Inglewood, Lawndale, San Pedro, Watts, Wilmington and surrounding South LA/South Bay communities.","capitol":"(916) 651-4035","offices":[["Torrance","(310) 217-4728"],["Inglewood","(310) 412-6120"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/Portrait%2520Richardson_1.jpg?itok=xlLMqA31"},"36":{"name":"Tony Strickland","party":"R","url":"https://sr36.senate.ca.gov/","districtUrl":"https://sr36.senate.ca.gov/issue/district-map","region":"Coastal / Northwest Orange County & Southeast LA County","areas":"Huntington Beach, Seal Beach, Westminster, Garden Grove, Fountain Valley, Newport Beach, San Clemente, Buena Park, Cerritos and nearby communities.","capitol":"(916) 651-4036","offices":[["Huntington Beach","(714) 374-4000"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/Senator%2520Strickland%2520Headshot%2520SD36_2.jpg?itok=pZE7UY0v"},"37":{"name":"Steven S. Choi, Ph.D.","party":"R","url":"https://sr37.senate.ca.gov/","districtUrl":"https://sr37.senate.ca.gov/","region":"Central Orange County","areas":"Irvine, Costa Mesa, Tustin, Lake Forest, Laguna Woods, Laguna Niguel, Aliso Viejo, Villa Park and portions of Orange, Anaheim, Fullerton, Placentia and Yorba Linda.","capitol":"(916) 651-4037","offices":[["Irvine","(714) 544-1035"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/2016%2520New%2520Member%2520Headshots%2520Choi-268_3.jpg?itok=1pOlNotm"},"38":{"name":"Catherine S. Blakespear","party":"D","url":"https://sd38.senate.ca.gov/","districtUrl":"https://sd38.senate.ca.gov/district","region":"North Coastal San Diego & South Orange County","areas":"Coastal communities from northern San Diego County into southern Orange County.","capitol":"(916) 651-4038","offices":[["Carlsbad","(760) 438-2005"],["Laguna Hills","(949) 598-5850"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/BLAKESPEAR%252C%2520CATHERINE%2520%2528D%2520-38%2529_9.jpg?itok=AbZqc0Zp"},"39":{"name":"Akilah Weber Pierson, M.D.","party":"D","url":"https://sd39.senate.ca.gov/","districtUrl":"https://sd39.senate.ca.gov/district","region":"Central San Diego & East County","areas":"Coronado, El Cajon, La Mesa, Lemon Grove and portions of the City of San Diego and central/eastern San Diego County.","capitol":"(916) 651-4039","offices":[["San Diego","(619) 688-6700"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/Portrait%2520Weber_3.jpg?itok=eoRYP-Z8"},"40":{"name":"Brian W. Jones","party":"R","url":"https://sr40.senate.ca.gov/","districtUrl":"https://sr40.senate.ca.gov/issue/ca-senate-district-40-map","region":"North & East San Diego County","areas":"Escondido, Poway, San Marcos, Santee and San Diego communities including Mira Mesa, Rancho Bernardo, Rancho Peñasquitos and Scripps Ranch, plus nearby unincorporated areas.","capitol":"(916) 651-4040","offices":[["Scripps Ranch","(858) 547-3818"],["Escondido","(760) 796-4655"]],"photo":"https://www.senate.ca.gov/sites/senate.ca.gov/files/styles/large/public/media/Brian%2520Jones%2520Headshot%2520%2528Main%2529_0_3.jpg?itok=P7SsCS8_"}};
+
+const bills={
+  AB113:{id:'AB 113',date:'Sep. 1, 2026',title:'Budget Act of 2026',desc:'Budget bill amending appropriations and numerous items in the 2026 Budget Act; the Senate floor result was 29–4 with 6 NVR.',url:'https://leginfo.legislature.ca.gov/faces/billStatusClient.xhtml?bill_id=202520260AB113',votes:'https://leginfo.legislature.ca.gov/faces/billVotesClient.xhtml?bill_id=202520260AB113'},
+  SB931:{id:'SB 931',date:'Sep. 1, 2026',title:'Dolly Parton Day',desc:'Adds Dolly Parton Day to the Government Code and includes an urgency clause; the Senate floor result was 39–0.',url:'https://leginfo.legislature.ca.gov/faces/billStatusClient.xhtml?bill_id=202520260SB931',votes:'https://leginfo.legislature.ca.gov/faces/billVotesClient.xhtml?bill_id=202520260SB931'},
+  SB876:{id:'SB 876',date:'Aug. 31, 2026',title:'Fire and residential property insurance',desc:'Amends Insurance Code provisions governing fire and residential property insurance; the concurrence vote was 27–9 with 4 NVR.',url:'https://leginfo.legislature.ca.gov/faces/billStatusClient.xhtml?bill_id=202520260SB876',votes:'https://leginfo.legislature.ca.gov/faces/billVotesClient.xhtml?bill_id=202520260SB876'}
+};
+const ab113Nay=new Set([6,12,32,40]);
+const ab113Nvr=new Set([1,4,19,23,36,37]);
+const sb876Nay=new Set([1,4,6,12,19,23,32,36,37]);
+const sb876Nvr=new Set([13,16,27,40]);
+const latestKeys=['AB113','SB931','SB876'];
+
+const MAX_RESPONSE_BYTES=12*1024*1024;
+const MAX_BOUNDARY_FEATURES=80;
+const MAX_TOTAL_COORDINATE_PAIRS=1000000;
+const MAX_TOTAL_RINGS=12000;
+const MAX_RING_POINTS=200000;
+const CENSUS_FRAME_SCRIPT="(() => {\n'use strict';\nconst ENDPOINT='https://geocoding.geo.census.gov/geocoder/locations/onelineaddress';\nwindow.addEventListener('message',event=>{\n  if(event.source!==parent)return;\n  const msg=event.data;\n  if(!msg||msg.type!=='GEOCODE_REQUEST')return;\n  const requestId=String(msg.requestId||'');\n  const address=String(msg.address||'').replace(/\\s+/g,' ').trim();\n  if(!requestId||!address||address.length>220)return;\n  const cb='__caSenateGeo_'+Date.now()+'_'+Math.random().toString(36).slice(2);\n  const script=document.createElement('script');\n  let finished=false;\n  let timer=0;\n  const finish=payload=>{\n    if(finished)return;\n    finished=true;\n    clearTimeout(timer);\n    try{delete window[cb]}catch(_){window[cb]=undefined}\n    script.remove();\n    parent.postMessage({type:'GEOCODE_RESPONSE',requestId,...payload},'*');\n  };\n  window[cb]=data=>{\n    try{\n      const matches=data&&data.result&&Array.isArray(data.result.addressMatches)?data.result.addressMatches:[];\n      if(!matches.length){finish({ok:false,error:'No Census address match was found. Try a full street address with city or ZIP code.'});return}\n      const m=matches[0];\n      const lon=Number(m.coordinates&&m.coordinates.x),lat=Number(m.coordinates&&m.coordinates.y);\n      if(!Number.isFinite(lon)||!Number.isFinite(lat)){finish({ok:false,error:'The Census response did not include usable coordinates.'});return}\n      finish({ok:true,lon,lat});\n    }catch(_){finish({ok:false,error:'The Census address response could not be processed.'})}\n  };\n  script.onerror=()=>finish({ok:false,error:'The U.S. Census address service could not be reached. Check the internet connection and try again.'});\n  const q=new URLSearchParams({address,benchmark:'Public_AR_Current',format:'jsonp',callback:cb});\n  script.src=ENDPOINT+'?'+q.toString();\n  script.async=true;\n  script.referrerPolicy='no-referrer';\n  document.head.appendChild(script);\n  timer=setTimeout(()=>finish({ok:false,error:'Address lookup timed out. Please try again.'}),16000);\n});\n})();";
+const CENSUS_FRAME_CSP="default-src 'none'; script-src 'sha256-uHsF2sNKangmQb76lKxjoihjosPWWj06qddHWuOWZ30=' https://geocoding.geo.census.gov; script-src-attr 'none'; style-src 'none'; img-src 'none'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
+const CENSUS_FRAME_HTML='<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="'+CENSUS_FRAME_CSP+'"></head><body><script>'+CENSUS_FRAME_SCRIPT+'<\/script></body></html>';
+
+const $=id=>document.getElementById(id);
+const svg=$('map'),basemapLayer=$('basemapLayer'),districtLayer=$('districtLayer'),labelLayer=$('labelLayer'),markerLayer=$('markerLayer');
+const loading=$('loading'),statusDot=$('statusDot'),statusText=$('statusText');
+const addressInput=$('addressInput'),addressBtn=$('addressBtn'),lookupLine=$('lookupLine');
+const districtSelect=$('districtSelect'),partyFilter=$('partyFilter');
+const pop=$('popover'),modalBackdrop=$('modalBackdrop'),modalContent=$('modalContent');
+const zoomReadout=$('zoomReadout'),basemapStatus=$('basemapStatus');
+const partyName=p=>p==='D'?'Democratic':p==='R'?'Republican':'Vacant';
+const partyClass=p=>p==='D'?'party-d':p==='R'?'party-r':'party-v';
+const voteClass=v=>v==='Yea'?'yea':v==='Nay'?'nay':v==='Vacant'?'vacant':'nvr';
+
+const BASEMAP_NAME='Esri World Topographic Map';
+const BASEMAP_HOST='https://server.arcgisonline.com';
+const BASEMAP_TILE_ROOT=BASEMAP_HOST+'/ArcGIS/rest/services/World_Topo_Map/MapServer/tile';
+const MAX_BASEMAP_TILES=80;
+let basemapFailureCount=0,basemapLoadCount=0,basemapFailureReported=false;
+function setBasemapStatus(message=''){if(!basemapStatus)return;basemapStatus.textContent=message;basemapStatus.hidden=!message}
+function reportBasemapFailure(url){
+  basemapFailureCount++;
+  if(basemapFailureCount<=3)console.error('[CA Senate Map] basemap tile failed:',url);
+  if(basemapFailureCount>=4&&!basemapFailureReported){
+    basemapFailureReported=true;
+    console.error('[CA Senate Map] basemap unavailable after repeated tile failures. District geometry remains interactive.');
+    setBasemapStatus('Street basemap could not be loaded. District boundaries remain available and interactive.');
+  }
+}
+function reportBasemapLoad(){basemapLoadCount++;if(basemapLoadCount>=2&&basemapFailureCount<4)setBasemapStatus('')}
+
+
+const TRUSTED_LINK_HOSTS=new Set(['www.senate.ca.gov','senate.ca.gov','lab.data.ca.gov','www.census.gov','leginfo.legislature.ca.gov','sdmg.senate.ca.gov','www.esri.com','server.arcgisonline.com']);
+function trustedHref(href){
+  const u=new URL(href,location.href);
+  const senateSubdomain=u.hostname.endsWith('.senate.ca.gov');
+  if(u.protocol!=='https:'||(!TRUSTED_LINK_HOSTS.has(u.hostname)&&!senateSubdomain))throw new Error('Blocked untrusted outbound URL');
+  return u.href;
+}
+function trustedImageSrc(src){
+  const u=new URL(src,location.href);
+  if(u.protocol!=='https:'||u.hostname!=='www.senate.ca.gov')throw new Error('Blocked untrusted image URL');
+  return u.href;
+}
+function node(tag,className='',text=null){
+  const e=document.createElement(tag);
+  if(className)e.className=className;
+  if(text!==null)e.textContent=String(text);
+  return e;
+}
+function externalLink(text,href,className=''){
+  const a=node('a',className,text);
+  a.href=trustedHref(href);a.target='_blank';a.rel='noopener noreferrer';
+  return a;
+}
+function setLookup(message,state=''){
+  lookupLine.className='lookup-line'+(state?' '+state:'');
+  lookupLine.textContent=message;
+}
+function setLoading(message,errorDetail=''){
+  loading.hidden=false;
+  const wrap=node('div');
+  if(errorDetail){
+    const box=node('div','errorbox');
+    box.append(node('strong','',message),document.createElement('br'),node('span','small',errorDetail+' Open DevTools Console for a non-sensitive diagnostic.'));
+    wrap.appendChild(box);
+  }else{
+    wrap.append(node('div','spinner'),document.createTextNode(message));
+  }
+  loading.replaceChildren(wrap);
+}
+
+let renderedFeatures=[];
+let districtPaths=new Map();
+let districtLabels=new Map();
+let districtGeoBounds=new Map();
+let districtSvgBounds=new Map();
+let selectedDistrict=null;
+let hideTimer=null;
+let currentView={...BASE_VIEW};
+let currentZoom=1;
+let projectPoint=null;
+let unprojectPoint=null;
+let projectionState=null;
+let currentTileZoom=null;
+let lastTileKey='';
+let mapPromise=null;
+let suppressClickUntil=0;
+let activePointers=new Map();
+let dragState=null;
+let pinchState=null;
+let tapCandidate=null;
+let gestureHadMultiTouch=false;
+
+function voteFor(d,key){
+  if(d===10)return 'Vacant';
+  if(key==='SB931')return 'Yea';
+  if(key==='AB113')return ab113Nay.has(d)?'Nay':ab113Nvr.has(d)?'NVR':'Yea';
+  if(key==='SB876')return sb876Nay.has(d)?'Nay':sb876Nvr.has(d)?'NVR':'Yea';
+  return 'NVR';
+}
+function voteNode(d,key){
+  const b=bills[key],v=voteFor(d,key);
+  const wrap=node('div','vote');
+  const head=node('div','vote-head'),left=node('div');
+  left.append(node('div','bill',b.id+' · '+b.title),node('div','vote-date',b.date));
+  head.append(left,node('span','tag '+voteClass(v),v));
+  const links=node('div','vote-links');
+  links.append(externalLink('Bill page ↗',b.url),externalLink('Official votes ↗',b.votes));
+  wrap.append(head,node('div','vote-desc',b.desc),links);
+  return wrap;
+}
+function appendVoteCards(parent,d){
+  if(d===10){
+    const wrap=node('div','vote'),head=node('div','vote-head');
+    head.append(node('span','bill','No current senator'),node('span','tag vacant','VACANT'));
+    wrap.append(head,node('div','vote-desc','The official California Senate directory currently lists District 10 as vacant.'));
+    parent.appendChild(wrap);return;
+  }
+  latestKeys.forEach(k=>parent.appendChild(voteNode(d,k)));
+}
+function portraitNode(m,compact=false){
+  const wrap=node('div','portrait-wrap');
+  const img=node('img','senator-photo');
+  img.src=trustedImageSrc(m.photo);
+  img.alt=m.party==='V'?'California State Senate seal':`Official portrait of ${m.name}`;
+  img.loading='lazy';img.decoding='async';img.referrerPolicy='no-referrer';
+  img.addEventListener('error',()=>{
+    const fallback=node('div','photo-fallback',m.party==='V'?'Vacant seat':'Portrait unavailable');
+    img.replaceWith(fallback);
+  },{once:true});
+  wrap.appendChild(img);
+  if(!compact)wrap.appendChild(node('div','portrait-caption',m.party==='V'?'California State Senate':'Official California Senate portrait'));
+  return wrap;
+}
+function contactNode(m){
+  const grid=node('div','contact-grid');
+  const cap=node('div','contact-card');cap.append(node('div','contact-office','Capitol office'),node('div','contact-phone',m.capitol));grid.appendChild(cap);
+  for(const [office,phone] of m.offices){const card=node('div','contact-card');card.append(node('div','contact-office',office),node('div','contact-phone',phone));grid.appendChild(card)}
+  return grid;
+}
+function previewNode(d){
+  const m=members[d],wrap=node('div','preview');
+  wrap.appendChild(portraitNode(m,true));
+  const body=node('div');body.append(node('div','eyebrow',`California State Senate · District ${d}`),node('div','member',m.name),node('div','region-title',m.region));
+  const meta=node('div','meta');meta.append(node('span','pill '+partyClass(m.party),partyName(m.party)+(m.party==='V'?'':' ('+m.party+')')));body.appendChild(meta);
+  body.append(node('div','preview-area',m.areas));
+  if(m.party!=='V')body.append(node('div','preview-contact',`Capitol: ${m.capitol}`));
+  body.append(node('div','preview-hint','Click the district for the full portrait, contacts, district information and recent votes.'));
+  wrap.appendChild(body);return wrap;
+}
+function detailNode(d,addressMatched=false){
+  const m=members[d],frag=document.createDocumentFragment();
+  if(addressMatched){const hit=node('div','address-hit');hit.append(node('strong','',`Address matched to District ${d}`),node('div','small','The submitted address and geocoder coordinates are not displayed or retained after lookup.'));frag.appendChild(hit)}
+  const layout=node('div','member-layout');layout.appendChild(portraitNode(m,false));
+  const summary=node('div');summary.append(node('div','eyebrow',`California State Senate · District ${d}`),node('div','member',m.name),node('div','region-title',m.region));
+  const meta=node('div','meta');meta.append(node('span','pill '+partyClass(m.party),partyName(m.party)+(m.party==='V'?'':' ('+m.party+')')),node('span','pill','Snapshot '+SNAPSHOT));summary.appendChild(meta);
+  const links=node('div','profile-links');links.append(externalLink(m.party==='V'?'Official district site ↗':'Official senator page ↗',m.url,'profile-link'),externalLink('Official district map/info ↗',m.districtUrl,'profile-link'));summary.appendChild(links);layout.appendChild(summary);frag.appendChild(layout);
+  const area=node('div','area-card');area.append(node('strong','',`District ${d}: ${m.region}`),node('p','',m.areas),node('div','area-note','Major areas only; district boundaries on the map and official district source are authoritative.'));frag.appendChild(area);
+  frag.append(node('h3','','Contact'),contactNode(m));
+  frag.append(node('h3','',d===10?'Current seat status':'Latest 3 Senate floor roll calls'));
+  appendVoteCards(frag,d);
+  if(d!==10)frag.appendChild(node('div','area-note','NVR means no vote recorded on that roll call.'));
+  return frag;
+}
+
+for(let d=1;d<=40;d++){
+  const o=document.createElement('option');o.value=String(d);o.textContent=`District ${d} — ${members[d].name}`;districtSelect.appendChild(o);
+}
+
+function openModal(d,addressMatched=false){
+  console.info('[CA Senate Map] opening full district card:',d);
+  selectedDistrict=d;modalContent.replaceChildren(detailNode(d,addressMatched));modalBackdrop.classList.add('show');$('closeModal').focus();
+}
+function closeModal(){modalBackdrop.classList.remove('show');modalContent.replaceChildren()}
+function positionPop(d,event=null){
+  const mapRect=$('mapWrap').getBoundingClientRect();
+  const path=districtPaths.get(d),pathRect=path?path.getBoundingClientRect():null;
+  const gap=14,margin=10;
+  const card=pop.getBoundingClientRect();
+  const cardW=card.width||Math.min(450,window.innerWidth-32),cardH=card.height||240;
+  const anchorX=event&&Number.isFinite(event.clientX)?event.clientX:(pathRect?pathRect.left+pathRect.width/2:mapRect.left+mapRect.width/2);
+  const anchorY=event&&Number.isFinite(event.clientY)?event.clientY:(pathRect?pathRect.top+Math.min(pathRect.height/2,120):mapRect.top+80);
+  let left=anchorX+gap;
+  if(left+cardW>mapRect.right-margin)left=anchorX-cardW-gap;
+  left=clamp(left,mapRect.left+margin,Math.max(mapRect.left+margin,mapRect.right-cardW-margin));
+  let top=anchorY-24;
+  top=clamp(top,mapRect.top+margin,Math.max(mapRect.top+margin,mapRect.bottom-cardH-margin));
+  pop.style.left=Math.round(left)+'px';pop.style.top=Math.round(top)+'px';
+}
+function showPop(d,event=null){
+  if(matchMedia('(hover:none)').matches||Date.now()<suppressClickUntil)return;
+  clearTimeout(hideTimer);
+  if(pop.dataset.district!==String(d)){
+    pop.replaceChildren(previewNode(d));
+    pop.dataset.district=String(d);
+  }
+  pop.classList.add('show');
+  positionPop(d,event);
+}
+function scheduleHide(){clearTimeout(hideTimer);hideTimer=setTimeout(()=>{pop.classList.remove('show');pop.replaceChildren();delete pop.dataset.district},120)}
+pop.addEventListener('mouseenter',()=>clearTimeout(hideTimer));
+pop.addEventListener('mouseleave',scheduleHide);
+
+function districtColor(d){const hue=(d*137.508)%360;return `hsl(${hue.toFixed(1)} 65% 48%)`}
+function mercatorNorm(lon,lat){
+  const x=(Number(lon)+180)/360;
+  const capped=clamp(Number(lat),-85.05112878,85.05112878),rad=capped*Math.PI/180;
+  const y=(1-Math.asinh(Math.tan(rad))/Math.PI)/2;
+  return[x,y];
+}
+function mercatorToLonLat(mx,my){
+  const lon=mx*360-180;
+  const lat=Math.atan(Math.sinh(Math.PI*(1-2*my)))*180/Math.PI;
+  return[lon,lat];
+}
+function buildProjection(minLon,maxLon,minLat,maxLat){
+  const W=BASE_VIEW.w,H=BASE_VIEW.h,pad=28;
+  const [mx0,myTop]=mercatorNorm(minLon,maxLat),[mx1,myBottom]=mercatorNorm(maxLon,minLat);
+  const spanX=mx1-mx0,spanY=myBottom-myTop;
+  const scale=Math.min((W-pad*2)/spanX,(H-pad*2)/spanY);
+  const usedW=spanX*scale,usedH=spanY*scale,ox=(W-usedW)/2,oy=(H-usedH)/2;
+  projectionState={mx0,myTop,scale,ox,oy};
+  projectPoint=p=>{const [mx,my]=mercatorNorm(p[0],p[1]);return[ox+(mx-mx0)*scale,oy+(my-myTop)*scale]};
+  unprojectPoint=p=>{const mx=mx0+(p[0]-ox)/scale,my=myTop+(p[1]-oy)/scale;return mercatorToLonLat(mx,my)};
+}
+function lonToTileX(lon,z){return((lon+180)/360)*(2**z)}
+function latToTileY(lat,z){const r=clamp(lat,-85.05112878,85.05112878)*Math.PI/180;return(1-Math.asinh(Math.tan(r))/Math.PI)/2*(2**z)}
+function tileXToLon(x,z){return x/(2**z)*360-180}
+function tileYToLat(y,z){return Math.atan(Math.sinh(Math.PI*(1-2*y/(2**z))))*180/Math.PI}
+function updateBasemapTiles(){
+  if(!projectPoint||!unprojectPoint||!projectionState)return;
+  let z=clamp(7+Math.floor(Math.log2(Math.max(1,currentZoom))),7,13);
+  const [leftLon,topLat]=unprojectPoint([currentView.x,currentView.y]);
+  const [rightLon,bottomLat]=unprojectPoint([currentView.x+currentView.w,currentView.y+currentView.h]);
+  let x0,x1,y0,y1,tileCount=0;
+  while(true){
+    const n=2**z;
+    x0=clamp(Math.floor(lonToTileX(leftLon,z))-1,0,n-1);x1=clamp(Math.floor(lonToTileX(rightLon,z))+1,0,n-1);
+    y0=clamp(Math.floor(latToTileY(topLat,z))-1,0,n-1);y1=clamp(Math.floor(latToTileY(bottomLat,z))+1,0,n-1);
+    tileCount=(x1-x0+1)*(y1-y0+1);
+    if(tileCount<=MAX_BASEMAP_TILES||z<=7)break;
+    z--;
+  }
+  const key=[z,x0,x1,y0,y1].join(':');if(key===lastTileKey)return;lastTileKey=key;currentTileZoom=z;
+  const frag=document.createDocumentFragment(),ns='http://www.w3.org/2000/svg';
+  for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){
+    const lonL=tileXToLon(x,z),lonR=tileXToLon(x+1,z),latT=tileYToLat(y,z),latB=tileYToLat(y+1,z);
+    const [sx,sy]=projectPoint([lonL,latT]),[ex,ey]=projectPoint([lonR,latB]);
+    const img=document.createElementNS(ns,'image'),url=`${BASEMAP_TILE_ROOT}/${z}/${y}/${x}`;
+    img.setAttribute('x',sx.toFixed(3));img.setAttribute('y',sy.toFixed(3));img.setAttribute('width',(ex-sx+0.4).toFixed(3));img.setAttribute('height',(ey-sy+0.4).toFixed(3));
+    img.setAttribute('preserveAspectRatio','none');img.setAttribute('class','basemap-tile');img.setAttribute('href',url);
+    img.addEventListener('load',reportBasemapLoad,{once:true});
+    img.addEventListener('error',()=>{reportBasemapFailure(url);img.remove()},{once:true});
+    frag.appendChild(img);
+  }
+  basemapLayer.replaceChildren(frag);
+  console.debug('[CA Senate Map] basemap tiles:',{provider:BASEMAP_NAME,z,count:tileCount,viewZoom:Number(currentZoom.toFixed(1))});
+}
+function forEachPoint(geometry,cb){
+  if(!geometry||!Array.isArray(geometry.coordinates))return;
+  const stack=[geometry.coordinates];
+  while(stack.length){
+    const a=stack.pop();if(!Array.isArray(a)||!a.length)continue;
+    if(typeof a[0]==='number'&&typeof a[1]==='number'){cb(a);continue}
+    for(let i=a.length-1;i>=0;i--)stack.push(a[i]);
+  }
+}
+function geometryBounds(features){
+  let minLon=Infinity,maxLon=-Infinity,minLat=Infinity,maxLat=-Infinity,count=0;
+  for(const {f,d} of features){
+    let dMinLon=Infinity,dMaxLon=-Infinity,dMinLat=Infinity,dMaxLat=-Infinity;
+    forEachPoint(f.geometry,p=>{
+      const lon=Number(p[0]),lat=Number(p[1]);if(!Number.isFinite(lon)||!Number.isFinite(lat))return;
+      minLon=Math.min(minLon,lon);maxLon=Math.max(maxLon,lon);minLat=Math.min(minLat,lat);maxLat=Math.max(maxLat,lat);count++;
+      dMinLon=Math.min(dMinLon,lon);dMaxLon=Math.max(dMaxLon,lon);dMinLat=Math.min(dMinLat,lat);dMaxLat=Math.max(dMaxLat,lat);
+    });
+    districtGeoBounds.set(d,{minLon:dMinLon,maxLon:dMaxLon,minLat:dMinLat,maxLat:dMaxLat});
+  }
+  if(!count||![minLon,maxLon,minLat,maxLat].every(Number.isFinite))throw new Error('Boundary layer contained no usable coordinates');
+  if(minLon < -130 || maxLon > -110 || minLat < 30 || maxLat > 45)throw new Error('Boundary coordinates were outside the expected California region');
+  return {minLon,maxLon,minLat,maxLat,count};
+}
+function ringsOf(geometry){
+  if(!geometry)return[];
+  if(geometry.type==='Polygon')return geometry.coordinates||[];
+  if(geometry.type==='MultiPolygon'){const out=[];for(const poly of geometry.coordinates||[])for(const ring of poly||[])out.push(ring);return out}
+  return[];
+}
+function thinRing(r,maxPoints=1400){
+  if(!Array.isArray(r)||r.length<=maxPoints)return r||[];
+  const step=Math.ceil(r.length/maxPoints),out=[];
+  for(let i=0;i<r.length;i+=step)out.push(r[i]);
+  const first=out[0],last=out[out.length-1];if(first&&last&&(first[0]!==last[0]||first[1]!==last[1]))out.push(first);
+  return out;
+}
+function ringArea(r){let a=0;for(let i=0,j=r.length-1;i<r.length;j=i++)a+=(r[j][0]*r[i][1]-r[i][0]*r[j][1]);return Math.abs(a/2)}
+function ringCentroid(r){let a=0,cx=0,cy=0;for(let i=0,j=r.length-1;i<r.length;j=i++){const f=r[j][0]*r[i][1]-r[i][0]*r[j][1];a+=f;cx+=(r[j][0]+r[i][0])*f;cy+=(r[j][1]+r[i][1])*f}a*=.5;if(!a)return r[Math.floor(r.length/2)];return[cx/(6*a),cy/(6*a)]}
+function largestRing(geometry){let best=null,bestArea=-1;for(const raw of ringsOf(geometry)){const r=thinRing(raw);if(r.length<3)continue;const a=ringArea(r);if(a>bestArea){bestArea=a;best=r}}return best}
+function getDistrict(props){for(const k of Object.keys(props||{})){if(k.toLowerCase()==='district'){const n=+props[k];if(n>=1&&n<=40)return n}}return null}
+function validateBoundaryPayload(j){
+  if(!j||typeof j!=='object'||!Array.isArray(j.features))throw new Error('Boundary response was not a GeoJSON FeatureCollection');
+  if(j.type!==undefined&&j.type!=='FeatureCollection')throw new Error('Boundary response had an unexpected GeoJSON type');
+  if(j.features.length<40||j.features.length>MAX_BOUNDARY_FEATURES)throw new Error('Boundary response had an unexpected feature count');
+  let pointCount=0,ringCount=0;
+  const districts=new Set();
+  const validateRing=(ring,d)=>{
+    if(!Array.isArray(ring)||ring.length<4)throw new Error(`District ${d} contained an invalid polygon ring`);
+    ringCount++;if(ringCount>MAX_TOTAL_RINGS)throw new Error('Boundary response exceeded the polygon-ring safety limit');
+    if(ring.length>MAX_RING_POINTS)throw new Error(`District ${d} exceeded the per-ring coordinate safety limit`);
+    for(const p of ring){
+      if(!Array.isArray(p)||p.length<2)throw new Error(`District ${d} contained a malformed coordinate`);
+      const lon=Number(p[0]),lat=Number(p[1]);
+      if(!Number.isFinite(lon)||!Number.isFinite(lat))throw new Error(`District ${d} contained a non-finite coordinate`);
+      if(lon < -130 || lon > -110 || lat < 30 || lat > 45)throw new Error(`District ${d} contained coordinates outside the expected California region`);
+      pointCount++;if(pointCount>MAX_TOTAL_COORDINATE_PAIRS)throw new Error('Boundary response exceeded the total-coordinate safety limit');
+    }
+  };
+  for(const f of j.features){
+    if(!f||typeof f!=='object'||(f.type!==undefined&&f.type!=='Feature'))throw new Error('Boundary response contained a malformed GeoJSON feature');
+    const d=getDistrict(f.properties);if(!d)continue;
+    if(districts.has(d))throw new Error(`Boundary response contained duplicate District ${d}`);
+    districts.add(d);
+    const g=f.geometry;
+    if(!g||!['Polygon','MultiPolygon'].includes(g.type)||!Array.isArray(g.coordinates))throw new Error(`District ${d} had unsupported or malformed geometry`);
+    if(g.type==='Polygon'){
+      if(!g.coordinates.length)throw new Error(`District ${d} contained empty polygon geometry`);
+      for(const ring of g.coordinates)validateRing(ring,d);
+    }else{
+      if(!g.coordinates.length)throw new Error(`District ${d} contained empty multipolygon geometry`);
+      for(const poly of g.coordinates){if(!Array.isArray(poly)||!poly.length)throw new Error(`District ${d} contained an invalid polygon`);for(const ring of poly)validateRing(ring,d)}
+    }
+  }
+  if(districts.size!==40)throw new Error(`Boundary response did not contain 40 unique districts; received ${districts.size}`);
+  return {pointCount,ringCount};
+}
+async function fetchJsonWithTimeout(url,ms=18000){
+  const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),ms);
+  try{
+    const u=new URL(url);
+    if(u.protocol!=='https:'||!['services3.arcgis.com','gis.data.ca.gov'].includes(u.hostname))throw new Error('Blocked untrusted boundary source');
+    const r=await fetch(url,{mode:'cors',cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer',signal:ctl.signal});
+    if(!r.ok)throw new Error('Boundary request HTTP '+r.status);
+    const type=(r.headers.get('content-type')||'').toLowerCase();
+    if(type.includes('text/html')||type.includes('application/xhtml+xml')||type.includes('text/xml')||type.includes('application/xml'))throw new Error('Boundary source returned markup instead of GeoJSON');
+    const len=Number(r.headers.get('content-length')||0);if(len>MAX_RESPONSE_BYTES)throw new Error('Boundary response exceeded the safety size limit');
+    const raw=await r.text();if(raw.length>MAX_RESPONSE_BYTES)throw new Error('Boundary response exceeded the safety size limit');
+    let parsed;try{parsed=JSON.parse(raw)}catch(_){throw new Error('Boundary response was not valid JSON')}
+    return parsed;
+  }finally{clearTimeout(timer)}
+}
+async function fetchGeometry(){
+  let lastErr;
+  for(const url of [GEO_ENDPOINT,GEO_FALLBACK]){
+    try{
+      console.info('[CA Senate Map] requesting public boundary layer');
+      const j=await fetchJsonWithTimeout(url);
+      const scan=validateBoundaryPayload(j);
+      console.info('[CA Senate Map] boundary validation passed:',scan.pointCount,'coordinate pairs,',scan.ringCount,'rings');
+      return j;
+    }catch(e){lastErr=e;console.warn('[CA Senate Map] boundary source failed:',e)}
+  }
+  throw lastErr||new Error('Unable to load district geometry');
+}
+
+function clamp(n,a,b){return Math.max(a,Math.min(b,n))}
+function normalizeView(v){
+  const z=clamp(BASE_VIEW.w/v.w,1,MAX_ZOOM);let w=BASE_VIEW.w/z,h=BASE_VIEW.h/z;let x=v.x,y=v.y;
+  x=clamp(x,BASE_VIEW.x,BASE_VIEW.x+BASE_VIEW.w-w);y=clamp(y,BASE_VIEW.y,BASE_VIEW.y+BASE_VIEW.h-h);return{x,y,w,h};
+}
+function updateLabelPresentation(){
+  const rect=svg.getBoundingClientRect();if(!rect.width||!rect.height)return;
+  const sx=rect.width/currentView.w,sy=rect.height/currentView.h;
+  const mobile=matchMedia('(max-width:650px)').matches;
+  const candidates=[];
+  districtLabels.forEach((label,d)=>{
+    const b=districtSvgBounds.get(d);if(!b)return;
+    const selected=d===selectedDistrict,screenW=b.width*sx,screenH=b.height*sy;
+    const tooSmall=!selected&&(screenW<(mobile?26:23)||screenH<(mobile?20:17));
+    const lx=Number(label.getAttribute('x')),ly=Number(label.getAttribute('y'));
+    const px=(lx-currentView.x)*sx,py=(ly-currentView.y)*sy;
+    const onScreen=px>-30&&px<rect.width+30&&py>-30&&py<rect.height+30;
+    candidates.push({label,d,selected,tooSmall,onScreen,px,py,area:screenW*screenH});
+    const targetPx=selected?(mobile?17:16):(mobile?12:11.5);
+    label.setAttribute('font-size',String(targetPx/Math.max(sx,.0001)));
+    label.setAttribute('stroke-width',String((selected?3.8:2.8)/Math.max(sx,.0001)));
+    label.classList.toggle('label-selected',selected);
+  });
+  candidates.sort((a,b)=>Number(b.selected)-Number(a.selected)||b.area-a.area);
+  const accepted=[],minDistance=mobile?25:22;
+  for(const c of candidates){
+    let hide=c.tooSmall||!c.onScreen;
+    if(!hide&&!c.selected){for(const p of accepted){if(Math.hypot(c.px-p.px,c.py-p.py)<minDistance){hide=true;break}}}
+    c.label.classList.toggle('label-hidden',hide);
+    if(!hide)accepted.push(c);
+  }
+}
+function setView(v){
+  currentView=normalizeView(v);currentZoom=BASE_VIEW.w/currentView.w;
+  svg.setAttribute('viewBox',`${currentView.x.toFixed(3)} ${currentView.y.toFixed(3)} ${currentView.w.toFixed(3)} ${currentView.h.toFixed(3)}`);
+  zoomReadout.textContent=currentZoom.toFixed(1)+'×';updateLabelPresentation();updateBasemapTiles();
+}
+function resetView(){setView({...BASE_VIEW})}
+function zoomAt(factor,clientX=null,clientY=null){
+  const rect=svg.getBoundingClientRect(),rx=clientX==null?0.5:clamp((clientX-rect.left)/rect.width,0,1),ry=clientY==null?0.5:clamp((clientY-rect.top)/rect.height,0,1);
+  const anchorX=currentView.x+rx*currentView.w,anchorY=currentView.y+ry*currentView.h,newZoom=clamp(currentZoom*factor,1,MAX_ZOOM),newW=BASE_VIEW.w/newZoom,newH=BASE_VIEW.h/newZoom;
+  setView({x:anchorX-rx*newW,y:anchorY-ry*newH,w:newW,h:newH});
+}
+function zoomToDistrict(d){
+  const b=districtSvgBounds.get(d);if(!b)return;
+  const mobile=matchMedia('(max-width:650px)').matches;
+  const pad=Math.max(mobile?34:25,Math.max(b.width,b.height)*(mobile ? .52 : .34)),aspect=BASE_VIEW.w/BASE_VIEW.h;
+  let w=b.width+pad*2,h=b.height+pad*2;if(w/h>aspect)h=w/aspect;else w=h*aspect;
+  const maxAutoZoom=mobile?8:11,minW=BASE_VIEW.w/maxAutoZoom;w=clamp(w,minW,BASE_VIEW.w);h=w/aspect;
+  setView({x:b.x+b.width/2-w/2,y:b.y+b.height/2-h/2,w,h});
+}
+function applySelection(d){
+  selectedDistrict=d;districtPaths.forEach((p,n)=>p.classList.toggle('selected',n===d));districtSelect.value=d?String(d):'';updateLabelPresentation();
+}
+function applyPartyFilter(){
+  const p=partyFilter.value;
+  districtPaths.forEach((path,d)=>{const filtered=p!=='ALL'&&members[d].party!==p;path.classList.toggle('filtered',filtered);const label=districtLabels.get(d);if(label)label.classList.toggle('filtered',filtered)});
+}
+function selectDistrict(d,{modal=true,zoom=true,addressMatched=false}={}){
+  if(!members[d])return;
+  if(partyFilter.value!=='ALL'&&members[d].party!==partyFilter.value){partyFilter.value='ALL';applyPartyFilter()}
+  applySelection(d);if(zoom)zoomToDistrict(d);if(modal)openModal(d,addressMatched);
+}
+
+function pointInRing(lon,lat,ring){
+  let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const xi=+ring[i][0],yi=+ring[i][1],xj=+ring[j][0],yj=+ring[j][1];
+    const crosses=((yi>lat)!==(yj>lat))&&(lon<((xj-xi)*(lat-yi)/(yj-yi))+xi);if(crosses)inside=!inside;
+  }
+  return inside;
+}
+function pointInPolygon(lon,lat,poly){if(!poly||!poly.length||!pointInRing(lon,lat,poly[0]))return false;for(let i=1;i<poly.length;i++)if(pointInRing(lon,lat,poly[i]))return false;return true}
+function geometryContainsPoint(geometry,lon,lat){if(!geometry)return false;if(geometry.type==='Polygon')return pointInPolygon(lon,lat,geometry.coordinates);if(geometry.type==='MultiPolygon')return geometry.coordinates.some(poly=>pointInPolygon(lon,lat,poly));return false}
+function findDistrictForPoint(lon,lat){
+  for(const {f,d} of renderedFeatures){const b=districtGeoBounds.get(d);if(!b||lon<b.minLon||lon>b.maxLon||lat<b.minLat||lat>b.maxLat)continue;if(geometryContainsPoint(f.geometry,lon,lat))return d}
+  return null;
+}
+
+const censusFrame=document.createElement('iframe');
+censusFrame.hidden=true;censusFrame.tabIndex=-1;censusFrame.title='Isolated Census address lookup';
+censusFrame.setAttribute('sandbox','allow-scripts');
+const censusFrameLoaded=new Promise((resolve,reject)=>{
+  const t=setTimeout(()=>reject(new Error('Secure Census lookup helper did not initialize.')),5000);
+  censusFrame.addEventListener('load',()=>{clearTimeout(t);resolve()},{once:true});
+});
+censusFrame.srcdoc=CENSUS_FRAME_HTML;
+document.body.appendChild(censusFrame);
+function runSecuritySelfTest(){
+  const issues=[];
+  if(Object.keys(members).length!==40)issues.push('member roster is not exactly 40 districts');
+  if(censusFrame.getAttribute('sandbox')!=='allow-scripts')issues.push('Census helper sandbox changed unexpectedly');
+  const csp=document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content||'';
+  for(const required of ["default-src 'none'","script-src-attr 'none'","style-src-attr 'none'","object-src 'none'","base-uri 'none'","form-action 'none'"])if(!csp.includes(required))issues.push('CSP is missing '+required);
+  try{
+    for(const m of Object.values(members)){trustedHref(m.url);trustedHref(m.districtUrl);trustedImageSrc(m.photo)}
+    for(const b of Object.values(bills)){trustedHref(b.url);trustedHref(b.votes)}
+    document.querySelectorAll('a[href]').forEach(a=>trustedHref(a.href));
+  }catch(e){issues.push(e&&e.message?e.message:String(e))}
+  if(issues.length){console.error('[CA Senate Map] SECURITY SELF-TEST FAILED:',issues);return false}
+  console.info('[CA Senate Map] security self-test passed: CSP, sandbox, roster, links and image hosts');
+  return true;
+}
+runSecuritySelfTest();
+const pendingGeocodes=new Map();
+window.addEventListener('message',event=>{
+  if(event.source!==censusFrame.contentWindow)return;
+  const msg=event.data;if(!msg||msg.type!=='GEOCODE_RESPONSE'||typeof msg.requestId!=='string')return;
+  const pending=pendingGeocodes.get(msg.requestId);if(!pending)return;
+  pendingGeocodes.delete(msg.requestId);clearTimeout(pending.timer);
+  if(msg.ok===true&&Number.isFinite(Number(msg.lon))&&Number.isFinite(Number(msg.lat)))pending.resolve({lon:Number(msg.lon),lat:Number(msg.lat)});
+  else pending.reject(new Error(typeof msg.error==='string'?msg.error:'Address lookup failed.'));
+});
+async function censusGeocode(address){
+  await censusFrameLoaded;
+  return new Promise((resolve,reject)=>{
+    const requestId=crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2);
+    const timer=setTimeout(()=>{pendingGeocodes.delete(requestId);reject(new Error('Address lookup timed out. Please try again.'))},18000);
+    pendingGeocodes.set(requestId,{resolve,reject,timer});
+    censusFrame.contentWindow.postMessage({type:'GEOCODE_REQUEST',requestId,address},'*');
+  });
+}
+async function lookupAddress(){
+  let q=addressInput.value.replace(/\s+/g,' ').trim();
+  if(!q){setLookup('Enter a California street address first.','bad');addressInput.focus();return}
+  if(q.length>220){setLookup('Address is too long. Enter a normal street address with city or ZIP code.','bad');addressInput.focus();return}
+  if(!/(\bCA\b|California)/i.test(q))q+=', CA';
+  addressBtn.disabled=true;addressBtn.textContent='Finding…';setLookup('Looking up the address with the U.S. Census Bureau…');
+  try{
+    if(!renderedFeatures.length){if(mapPromise)await mapPromise;if(!renderedFeatures.length)throw new Error('District boundaries are not loaded yet.')}
+    const g=await censusGeocode(q);
+    if(g.lat<32||g.lat>43||g.lon<-125||g.lon>-113)throw new Error('The matched address is outside California.');
+    const d=findDistrictForPoint(g.lon,g.lat);if(!d)throw new Error('The address matched in California, but it did not fall inside a loaded State Senate district polygon.');
+    addressInput.value='';
+    setLookup(`Address matched → California State Senate District ${d} — ${members[d].name}`,'good');
+    selectDistrict(d,{modal:true,zoom:true,addressMatched:true});
+  }catch(e){
+    console.error('[CA Senate Map] address lookup failed:',e&&e.message?e.message:e);
+    setLookup(e&&e.message?e.message:String(e),'bad');
+  }finally{addressBtn.disabled=false;addressBtn.textContent='Find district'}
+}
+
+async function drawMap(){
+  setLoading('Loading official California district boundaries…');statusDot.className='dot';statusText.textContent='Loading official district geometry…';
+  basemapLayer.replaceChildren();districtLayer.replaceChildren();labelLayer.replaceChildren();markerLayer.replaceChildren();districtPaths.clear();districtLabels.clear();districtGeoBounds.clear();districtSvgBounds.clear();renderedFeatures=[];projectPoint=null;unprojectPoint=null;projectionState=null;lastTileKey='';basemapFailureCount=0;basemapLoadCount=0;basemapFailureReported=false;setBasemapStatus('');
+  try{
+    const gj=await fetchGeometry();
+    const feats=gj.features.map(f=>({f,d:getDistrict(f.properties)})).filter(x=>x.d).sort((a,b)=>a.d-b.d);
+    const ids=new Set(feats.map(x=>x.d));if(feats.length!==40||ids.size!==40)throw new Error(`Expected 40 unique districts; received ${ids.size}`);
+    renderedFeatures=feats;
+    const {minLon,maxLon,minLat,maxLat,count}=geometryBounds(feats);console.info('[CA Senate Map] coordinate scan complete:',count,'public geometry points');
+    buildProjection(minLon,maxLon,minLat,maxLat);
+    const ns='http://www.w3.org/2000/svg';
+    for(const {f,d} of feats){
+      if(!f.geometry||!['Polygon','MultiPolygon'].includes(f.geometry.type))throw new Error(`District ${d} had unsupported geometry`);
+      const path=document.createElementNS(ns,'path');let data='';
+      const appendRing=raw=>{const ring=thinRing(raw);if(ring.length<3)return;for(let i=0;i<ring.length;i++){const [x,y]=projectPoint(ring[i]);data+=(i?'L':'M')+x.toFixed(2)+','+y.toFixed(2)}data+='Z'};
+      if(f.geometry.type==='Polygon'){for(const ring of f.geometry.coordinates||[])appendRing(ring)}else{for(const poly of f.geometry.coordinates||[])for(const ring of poly||[])appendRing(ring)}
+      if(!data)throw new Error(`District ${d} contained no drawable geometry`);
+      path.setAttribute('d',data);path.setAttribute('fill',districtColor(d));path.setAttribute('fill-rule','evenodd');path.classList.add('district');path.dataset.district=String(d);path.setAttribute('tabindex','0');path.setAttribute('role','button');path.setAttribute('aria-label',`District ${d}, ${members[d].name}, ${partyName(members[d].party)}`);
+      path.addEventListener('mouseenter',e=>showPop(d,e));path.addEventListener('mouseleave',scheduleHide);
+      path.addEventListener('focus',()=>showPop(d));path.addEventListener('blur',scheduleHide);
+      path.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectDistrict(d,{modal:true,zoom:true})}});
+      districtLayer.appendChild(path);districtPaths.set(d,path);
+      const bbox=path.getBBox();districtSvgBounds.set(d,{x:bbox.x,y:bbox.y,width:bbox.width,height:bbox.height});
+      const outer=largestRing(f.geometry);if(outer){const c=ringCentroid(outer),[x,y]=projectPoint(c),t=document.createElementNS(ns,'text');t.setAttribute('x',x);t.setAttribute('y',y);t.setAttribute('class','district-label');t.dataset.district=String(d);t.textContent=d;labelLayer.appendChild(t);districtLabels.set(d,t)}
+    }
+    loading.hidden=true;statusDot.className='dot ok';statusText.textContent='Official district geometry loaded · 40 districts';applyPartyFilter();resetView();console.info('[CA Senate Map] render complete: 40 districts');
+  }catch(err){
+    console.error('[CA Senate Map] map rendering failed:',err);statusDot.className='dot err';statusText.textContent='Map geometry failed to load';setLoading('Could not load or render the official boundary layer.',err&&err.message?err.message:'The public boundary source returned an invalid, oversized, unavailable, or unexpected response.');throw err;
+  }
+}
+
+svg.addEventListener('wheel',e=>{e.preventDefault();pop.classList.remove('show');pop.replaceChildren();delete pop.dataset.district;zoomAt(e.deltaY<0?1.23:.81,e.clientX,e.clientY)},{passive:false});
+function pointerDistance(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function pointerMid(a,b){return{x:(a.x+b.x)/2,y:(a.y+b.y)/2}}
+svg.addEventListener('pointerdown',e=>{
+  if(e.pointerType==='mouse'&&e.button!==0)return;
+  const hit=e.target&&e.target.closest?e.target.closest('.district'):null;
+  tapCandidate={id:e.pointerId,d:hit?Number(hit.dataset.district):null,startX:e.clientX,startY:e.clientY,moved:false};
+  if(activePointers.size===0)gestureHadMultiTouch=false;
+  activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});pop.classList.remove('show');pop.replaceChildren();delete pop.dataset.district;
+  try{svg.setPointerCapture(e.pointerId)}catch(_){}
+  if(activePointers.size===1){dragState={id:e.pointerId,startX:e.clientX,startY:e.clientY,startView:{...currentView},moved:false};svg.classList.add('dragging')}
+  else if(activePointers.size===2){
+    gestureHadMultiTouch=true;if(tapCandidate)tapCandidate.moved=true;
+    const [a,b]=[...activePointers.values()],rect=svg.getBoundingClientRect(),mid=pointerMid(a,b);
+    pinchState={startDist:pointerDistance(a,b),startZoom:currentZoom,startView:{...currentView},anchorX:currentView.x+((mid.x-rect.left)/rect.width)*currentView.w,anchorY:currentView.y+((mid.y-rect.top)/rect.height)*currentView.h};dragState=null;
+  }
+});
+svg.addEventListener('pointermove',e=>{
+  if(!activePointers.has(e.pointerId))return;activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const rect=svg.getBoundingClientRect();
+  if(tapCandidate&&tapCandidate.id===e.pointerId&&Math.hypot(e.clientX-tapCandidate.startX,e.clientY-tapCandidate.startY)>6)tapCandidate.moved=true;
+  if(activePointers.size===2&&pinchState){
+    gestureHadMultiTouch=true;if(tapCandidate)tapCandidate.moved=true;
+    const [a,b]=[...activePointers.values()],dist=pointerDistance(a,b),mid=pointerMid(a,b),ratio=dist/pinchState.startDist,newZoom=clamp(pinchState.startZoom*ratio,1,MAX_ZOOM),w=BASE_VIEW.w/newZoom,h=BASE_VIEW.h/newZoom,rx=clamp((mid.x-rect.left)/rect.width,0,1),ry=clamp((mid.y-rect.top)/rect.height,0,1);
+    setView({x:pinchState.anchorX-rx*w,y:pinchState.anchorY-ry*h,w,h});suppressClickUntil=performance.now()+250;return;
+  }
+  if(activePointers.size===1&&dragState&&dragState.id===e.pointerId){
+    const dx=e.clientX-dragState.startX,dy=e.clientY-dragState.startY;if(Math.hypot(dx,dy)>6)dragState.moved=true;
+    if(dragState.moved){if(tapCandidate)tapCandidate.moved=true;setView({x:dragState.startView.x-dx*(dragState.startView.w/rect.width),y:dragState.startView.y-dy*(dragState.startView.h/rect.height),w:dragState.startView.w,h:dragState.startView.h});suppressClickUntil=performance.now()+250}
+  }
+});
+function endPointer(e){
+  const wasSingle=activePointers.size===1;
+  const shouldOpen=wasSingle&&!gestureHadMultiTouch&&tapCandidate&&tapCandidate.id===e.pointerId&&!tapCandidate.moved&&Number.isInteger(tapCandidate.d)&&members[tapCandidate.d];
+  const openDistrict=shouldOpen?tapCandidate.d:null;
+  activePointers.delete(e.pointerId);if(activePointers.size<2)pinchState=null;
+  if(activePointers.size===1){const [id,p]=[...activePointers.entries()][0];dragState={id,startX:p.x,startY:p.y,startView:{...currentView},moved:false};svg.classList.add('dragging')}
+  else if(activePointers.size===0){dragState=null;svg.classList.remove('dragging');gestureHadMultiTouch=false}
+  tapCandidate=null;
+  if(openDistrict){console.info('[CA Senate Map] district selected from map:',openDistrict);selectDistrict(openDistrict,{modal:true,zoom:true})}
+}
+svg.addEventListener('pointerup',endPointer);svg.addEventListener('pointercancel',endPointer);svg.addEventListener('lostpointercapture',e=>{if(activePointers.has(e.pointerId))endPointer(e)});
+
+window.addEventListener('resize',()=>{updateLabelPresentation();updateBasemapTiles()});
+$('zoomInBtn').addEventListener('click',()=>zoomAt(1.35));$('zoomOutBtn').addEventListener('click',()=>zoomAt(.74));$('fitBtn').addEventListener('click',resetView);
+$('resetBtn').addEventListener('click',()=>{partyFilter.value='ALL';districtSelect.value='';selectedDistrict=null;addressInput.value='';setLookup('');markerLayer.replaceChildren();districtPaths.forEach(p=>p.classList.remove('selected'));applyPartyFilter();resetView();closeModal();pop.classList.remove('show');pop.replaceChildren();delete pop.dataset.district});
+partyFilter.addEventListener('change',()=>{applyPartyFilter();pop.classList.remove('show');pop.replaceChildren();delete pop.dataset.district;if(selectedDistrict&&partyFilter.value!=='ALL'&&members[selectedDistrict].party!==partyFilter.value){districtPaths.get(selectedDistrict)?.classList.remove('selected');selectedDistrict=null;districtSelect.value=''}});
+districtSelect.addEventListener('change',()=>{if(districtSelect.value)selectDistrict(+districtSelect.value,{modal:true,zoom:true});else{selectedDistrict=null;districtPaths.forEach(p=>p.classList.remove('selected'));resetView()}});
+addressBtn.addEventListener('click',lookupAddress);addressInput.addEventListener('input',()=>{if(lookupLine.classList.contains('bad'))setLookup('')});addressInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();lookupAddress()}});
+$('closeModal').addEventListener('click',closeModal);modalBackdrop.addEventListener('click',e=>{if(e.target===modalBackdrop)closeModal()});document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();pop.classList.remove('show');pop.replaceChildren();delete pop.dataset.district}});
+
+mapPromise=drawMap().catch(()=>{});
+})();
+</script>
+</body>
+</html>
