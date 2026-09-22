@@ -41,16 +41,6 @@ Everything required to run the application is contained in `index.html`; the map
 .
 ├── index.html                 # Complete application / GitHub Pages entry point
 ├── README.md                  # Project overview
-├── DEPLOYMENT.md              # GitHub Pages deployment instructions
-├── DATA_SOURCES.md            # External public-data sources used by the app
-├── PRIVACY.md                 # Address-lookup and third-party request disclosure
-├── SECURITY.md                # Security design and vulnerability reporting
-├── CONTRIBUTING.md            # Contribution and data-quality rules
-├── .nojekyll                  # Serve the repo as a plain static site
-├── .gitignore
-└── .github/
-    └── ISSUE_TEMPLATE/
-        └── bug_report.yml
 
 
 ## Data Freshness
