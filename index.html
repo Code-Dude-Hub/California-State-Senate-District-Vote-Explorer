@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="referrer" content="strict-origin-when-cross-origin" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Ekzcl7SdxQ9pNYMS6CC6VL2MCHW/1Li9sKiRngMJHVg=' 'sha256-uHsF2sNKangmQb76lKxjoihjosPWWj06qddHWuOWZ30=' https://geocoding.geo.census.gov; script-src-attr 'none'; style-src 'sha256-GoF+uGmyg3lrHsKyhFVBIYT5wrRI9d5NF0sG3C/rDSs='; style-src-attr 'none'; connect-src https://services3.arcgis.com https://gis.data.ca.gov; img-src https://www.senate.ca.gov https://server.arcgisonline.com; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'self'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-6jCapnZckinYDTYjROJGDtpCWeq5NZn731iWaLV41Ro=' 'sha256-uHsF2sNKangmQb76lKxjoihjosPWWj06qddHWuOWZ30=' https://geocoding.geo.census.gov; script-src-attr 'none'; style-src 'sha256-GoF+uGmyg3lrHsKyhFVBIYT5wrRI9d5NF0sG3C/rDSs='; style-src-attr 'none'; connect-src https://services3.arcgis.com https://gis.data.ca.gov; img-src https://www.senate.ca.gov https://server.arcgisonline.com; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'self'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests" />
 <title>California State Senate — District & Vote Explorer</title>
 <style>
 :root{
@@ -267,6 +267,7 @@ function setLoading(message,errorDetail=''){
 let renderedFeatures=[];
 let districtPaths=new Map();
 let districtLabels=new Map();
+let districtLabelAnchors=new Map();
 let districtGeoBounds=new Map();
 let districtSvgBounds=new Map();
 let selectedDistrict=null;
@@ -490,7 +491,89 @@ function thinRing(r,maxPoints=1400){
 }
 function ringArea(r){let a=0;for(let i=0,j=r.length-1;i<r.length;j=i++)a+=(r[j][0]*r[i][1]-r[i][0]*r[j][1]);return Math.abs(a/2)}
 function ringCentroid(r){let a=0,cx=0,cy=0;for(let i=0,j=r.length-1;i<r.length;j=i++){const f=r[j][0]*r[i][1]-r[i][0]*r[j][1];a+=f;cx+=(r[j][0]+r[i][0])*f;cy+=(r[j][1]+r[i][1])*f}a*=.5;if(!a)return r[Math.floor(r.length/2)];return[cx/(6*a),cy/(6*a)]}
-function largestRing(geometry){let best=null,bestArea=-1;for(const raw of ringsOf(geometry)){const r=thinRing(raw);if(r.length<3)continue;const a=ringArea(r);if(a>bestArea){bestArea=a;best=r}}return best}
+function polygonsOf(geometry){
+  if(!geometry)return[];
+  if(geometry.type==='Polygon')return[geometry.coordinates||[]];
+  if(geometry.type==='MultiPolygon')return geometry.coordinates||[];
+  return[];
+}
+function pointSegmentDistanceSq(px,py,ax,ay,bx,by){
+  let x=ax,y=ay,dx=bx-ax,dy=by-ay;
+  if(dx!==0||dy!==0){
+    const t=((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy);
+    if(t>1){x=bx;y=by}else if(t>0){x+=dx*t;y+=dy*t}
+  }
+  dx=px-x;dy=py-y;return dx*dx+dy*dy;
+}
+function pointToProjectedPolygonDistance(x,y,poly){
+  let inside=false,minDistSq=Infinity;
+  for(const ring of poly){
+    if(!ring||ring.length<3)continue;
+    for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+      const a=ring[i],b=ring[j];
+      if(((a[1]>y)!==(b[1]>y))&&(x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]))inside=!inside;
+      minDistSq=Math.min(minDistSq,pointSegmentDistanceSq(x,y,a[0],a[1],b[0],b[1]));
+    }
+  }
+  const d=Math.sqrt(minDistSq);
+  return inside?d:-d;
+}
+function makeLabelCell(x,y,h,poly){
+  const d=pointToProjectedPolygonDistance(x,y,poly);
+  return{x,y,h,d,max:d+h*Math.SQRT2};
+}
+function heapPush(heap,cell){
+  let i=heap.length;heap.push(cell);
+  while(i>0){const p=(i-1)>>1;if(heap[p].max>=cell.max)break;heap[i]=heap[p];i=p}
+  heap[i]=cell;
+}
+function heapPop(heap){
+  if(!heap.length)return null;
+  const top=heap[0],last=heap.pop();if(!heap.length)return top;
+  let i=0;
+  while(true){
+    let l=i*2+1,r=l+1,best=i;
+    if(l<heap.length&&heap[l].max>(best===i?last.max:heap[best].max))best=l;
+    if(r<heap.length&&heap[r].max>(best===i?last.max:heap[best].max))best=r;
+    if(best===i)break;
+    heap[i]=heap[best];i=best;
+  }
+  heap[i]=last;return top;
+}
+function labelAnchorForPolygon(rawPoly){
+  if(!Array.isArray(rawPoly)||!rawPoly.length||!projectPoint)return null;
+  const poly=rawPoly.map(raw=>thinRing(raw,1800).map(projectPoint)).filter(r=>r.length>=3);
+  if(!poly.length)return null;
+  const outer=poly[0];
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const p of outer){minX=Math.min(minX,p[0]);minY=Math.min(minY,p[1]);maxX=Math.max(maxX,p[0]);maxY=Math.max(maxY,p[1])}
+  const width=maxX-minX,height=maxY-minY,cellSize=Math.min(width,height);
+  if(!Number.isFinite(cellSize)||cellSize<=0)return{x:outer[0][0],y:outer[0][1],area:ringArea(outer),clearance:0};
+  const heap=[],h=cellSize/2;
+  for(let x=minX;x<maxX;x+=cellSize)for(let y=minY;y<maxY;y+=cellSize)heapPush(heap,makeLabelCell(x+h,y+h,h,poly));
+  const c=ringCentroid(outer);
+  let best=makeLabelCell(c[0],c[1],0,poly);
+  const box=makeLabelCell(minX+width/2,minY+height/2,0,poly);if(box.d>best.d)best=box;
+  const precision=Math.max(.22,Math.min(width,height)/220);
+  let guard=0;
+  while(heap.length&&guard++<60000){
+    const cell=heapPop(heap);if(!cell)break;
+    if(cell.d>best.d)best=cell;
+    if(cell.max-best.d<=precision)continue;
+    const hh=cell.h/2;if(hh<.02)continue;
+    heapPush(heap,makeLabelCell(cell.x-hh,cell.y-hh,hh,poly));
+    heapPush(heap,makeLabelCell(cell.x+hh,cell.y-hh,hh,poly));
+    heapPush(heap,makeLabelCell(cell.x-hh,cell.y+hh,hh,poly));
+    heapPush(heap,makeLabelCell(cell.x+hh,cell.y+hh,hh,poly));
+  }
+  return{x:best.x,y:best.y,area:ringArea(outer),clearance:Math.max(0,best.d)};
+}
+function labelAnchorsForGeometry(geometry){
+  const anchors=[];
+  for(const poly of polygonsOf(geometry)){const a=labelAnchorForPolygon(poly);if(a)anchors.push(a)}
+  anchors.sort((a,b)=>b.area-a.area||b.clearance-a.clearance);
+  return anchors;
+}
 function getDistrict(props){for(const k of Object.keys(props||{})){if(k.toLowerCase()==='district'){const n=+props[k];if(n>=1&&n<=40)return n}}return null}
 function validateBoundaryPayload(j){
   if(!j||typeof j!=='object'||!Array.isArray(j.features))throw new Error('Boundary response was not a GeoJSON FeatureCollection');
@@ -569,22 +652,29 @@ function updateLabelPresentation(){
   const candidates=[];
   districtLabels.forEach((label,d)=>{
     const b=districtSvgBounds.get(d);if(!b)return;
-    const selected=d===selectedDistrict,screenW=b.width*sx,screenH=b.height*sy;
-    const tooSmall=!selected&&(screenW<(mobile?26:23)||screenH<(mobile?20:17));
+    const anchors=districtLabelAnchors.get(d)||[];
+    let chosen=anchors[0]||null;
+    if(anchors.length>1){
+      const visible=anchors.filter(a=>a.x>=currentView.x&&a.x<=currentView.x+currentView.w&&a.y>=currentView.y&&a.y<=currentView.y+currentView.h);
+      if(visible.length)chosen=visible[0];
+    }
+    if(chosen){label.setAttribute('x',chosen.x);label.setAttribute('y',chosen.y)}
+    const selected=d===selectedDistrict,screenW=b.width*sx,screenH=b.height*sy,screenArea=screenW*screenH;
+    const tooSmall=!selected&&currentZoom<2.2&&screenArea<(mobile?700:500);
     const lx=Number(label.getAttribute('x')),ly=Number(label.getAttribute('y'));
     const px=(lx-currentView.x)*sx,py=(ly-currentView.y)*sy;
     const onScreen=px>-30&&px<rect.width+30&&py>-30&&py<rect.height+30;
-    candidates.push({label,d,selected,tooSmall,onScreen,px,py,area:screenW*screenH});
+    candidates.push({label,d,selected,tooSmall,onScreen,px,py,area:screenArea});
     const targetPx=selected?(mobile?17:16):(mobile?12:11.5);
     label.setAttribute('font-size',String(targetPx/Math.max(sx,.0001)));
     label.setAttribute('stroke-width',String((selected?3.8:2.8)/Math.max(sx,.0001)));
     label.classList.toggle('label-selected',selected);
   });
   candidates.sort((a,b)=>Number(b.selected)-Number(a.selected)||b.area-a.area);
-  const accepted=[],minDistance=mobile?25:22;
+  const accepted=[],minDistance=currentZoom>=4?13:currentZoom>=2.5?16:(mobile?23:20);
   for(const c of candidates){
     let hide=c.tooSmall||!c.onScreen;
-    if(!hide&&!c.selected){for(const p of accepted){if(Math.hypot(c.px-p.px,c.py-p.py)<minDistance){hide=true;break}}}
+    if(!hide&&!c.selected&&currentZoom<3){for(const p of accepted){if(Math.hypot(c.px-p.px,c.py-p.py)<minDistance){hide=true;break}}}
     c.label.classList.toggle('label-hidden',hide);
     if(!hide)accepted.push(c);
   }
@@ -701,7 +791,7 @@ async function lookupAddress(){
 
 async function drawMap(){
   setLoading('Loading official California district boundaries…');statusDot.className='dot';statusText.textContent='Loading official district geometry…';
-  basemapLayer.replaceChildren();districtLayer.replaceChildren();labelLayer.replaceChildren();markerLayer.replaceChildren();districtPaths.clear();districtLabels.clear();districtGeoBounds.clear();districtSvgBounds.clear();renderedFeatures=[];projectPoint=null;unprojectPoint=null;projectionState=null;lastTileKey='';basemapFailureCount=0;basemapLoadCount=0;basemapFailureReported=false;setBasemapStatus('');
+  basemapLayer.replaceChildren();districtLayer.replaceChildren();labelLayer.replaceChildren();markerLayer.replaceChildren();districtPaths.clear();districtLabels.clear();districtLabelAnchors.clear();districtGeoBounds.clear();districtSvgBounds.clear();renderedFeatures=[];projectPoint=null;unprojectPoint=null;projectionState=null;lastTileKey='';basemapFailureCount=0;basemapLoadCount=0;basemapFailureReported=false;setBasemapStatus('');
   try{
     const gj=await fetchGeometry();
     const feats=gj.features.map(f=>({f,d:getDistrict(f.properties)})).filter(x=>x.d).sort((a,b)=>a.d-b.d);
@@ -722,7 +812,15 @@ async function drawMap(){
       path.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectDistrict(d,{modal:true,zoom:true})}});
       districtLayer.appendChild(path);districtPaths.set(d,path);
       const bbox=path.getBBox();districtSvgBounds.set(d,{x:bbox.x,y:bbox.y,width:bbox.width,height:bbox.height});
-      const outer=largestRing(f.geometry);if(outer){const c=ringCentroid(outer),[x,y]=projectPoint(c),t=document.createElementNS(ns,'text');t.setAttribute('x',x);t.setAttribute('y',y);t.setAttribute('class','district-label');t.dataset.district=String(d);t.textContent=d;labelLayer.appendChild(t);districtLabels.set(d,t)}
+      const anchors=labelAnchorsForGeometry(f.geometry);
+      if(anchors.length){
+        districtLabelAnchors.set(d,anchors);
+        const a=anchors[0],t=document.createElementNS(ns,'text');
+        t.setAttribute('x',a.x);t.setAttribute('y',a.y);t.setAttribute('class','district-label');t.dataset.district=String(d);t.textContent=d;
+        labelLayer.appendChild(t);districtLabels.set(d,t);
+        const ll=unprojectPoint([a.x,a.y]);
+        if(!geometryContainsPoint(f.geometry,ll[0],ll[1]))console.warn('[CA Senate Map] label anchor validation failed for District',d);
+      }
     }
     loading.hidden=true;statusDot.className='dot ok';statusText.textContent='Official district geometry loaded · 40 districts';applyPartyFilter();resetView();console.info('[CA Senate Map] render complete: 40 districts');
   }catch(err){
