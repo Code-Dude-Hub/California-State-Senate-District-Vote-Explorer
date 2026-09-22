@@ -90,6 +90,7 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:10px;fl
     </div>
     <div class="status"><span id="statusDot" class="dot"></span><span id="statusText">Loading official district geometry…</span></div>
   </header>
+
   <div class="controls" aria-label="Map controls">
     <div class="address-group">
       <input id="addressInput" type="search" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="220" placeholder="Enter a California street address…" aria-label="California street address" />
@@ -132,6 +133,7 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:10px;fl
       <div id="loading" class="loading"><div><div class="spinner"></div>Loading official California district boundaries…</div></div>
     </div>
   </section>
+
   <footer>
     <div class="footer-note">Official public sources · roster/contact snapshot Sep. 21, 2026 · NVR = no vote recorded.</div>
     <div class="sources">
@@ -142,6 +144,7 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:10px;fl
     </div>
   </footer>
 </div>
+
 <div id="popover" class="popover" role="dialog" aria-label="District preview"></div>
 <div id="modalBackdrop" class="modal-backdrop" role="presentation">
   <div id="modal" class="modal" role="dialog" aria-modal="true" aria-label="District details">
@@ -149,6 +152,7 @@ footer{display:flex;align-items:center;justify-content:space-between;gap:10px;fl
     <div id="modalContent"></div>
   </div>
 </div>
+
 <script>
 (() => {
 'use strict';
@@ -159,6 +163,7 @@ if(window.top!==window.self){
   document.documentElement.replaceChildren();
   throw new Error('Blocked: this page cannot run inside an iframe.');
 }
+
 window.addEventListener('error',e=>console.error('[CA Senate Map] uncaught application error:',e.error||e.message||e));
 window.addEventListener('unhandledrejection',e=>console.error('[CA Senate Map] unhandled promise rejection:',e.reason||e));
 
@@ -217,6 +222,8 @@ function reportBasemapFailure(url){
   }
 }
 function reportBasemapLoad(){basemapLoadCount++;if(basemapLoadCount>=2&&basemapFailureCount<4)setBasemapStatus('')}
+
+
 const TRUSTED_LINK_HOSTS=new Set(['www.senate.ca.gov','senate.ca.gov','lab.data.ca.gov','www.census.gov','leginfo.legislature.ca.gov','sdmg.senate.ca.gov','www.esri.com','server.arcgisonline.com']);
 function trustedHref(href){
   const u=new URL(href,location.href);
