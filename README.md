@@ -1,6 +1,6 @@
 # California State Senate — District & Vote Explorer
 
-An interactive, single-page California State Senate district explorer designed as a public civic-information demo.
+An interactive map of California State Senate district, explorer designed as a public civic-information demo.
 
 The site lets visitors explore all 40 California State Senate districts on an interactive map, view district and senator information, filter districts by party, inspect recent floor-vote information, and look up a California street address to determine which Senate district contains that location.
 
